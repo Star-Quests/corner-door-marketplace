@@ -147,6 +147,44 @@ def load_user(user_id):
 # ... [PASTE ALL YOUR EXISTING ROUTES HERE] ...
 
 # ========== APP STARTUP ==========
+
+# ========== BASIC ROUTES TO MAKE WEBSITE WORK ==========
+
+@app.route('/')
+def index():
+    products = Product.query.filter_by(is_active=True).all()
+    # Simple crypto prices fallback
+    crypto_prices = {'BTC': 50000.0, 'ETH': 3000.0, 'SOL': 100.0}
+    return "🔄 Website is setting up... Database is working! Add your templates."
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        user = User.query.filter_by(username=username).first()
+        
+        if user and check_password_hash(user.password_hash, password):
+            login_user(user)
+            return f"✅ Logged in as {username}"
+        return "❌ Login failed"
+    return "📝 Login page - add your template"
+
+@app.route('/admin')
+@login_required
+def admin_dashboard():
+    if not current_user.is_admin:
+        return "❌ Access denied"
+    return "🛠️ Admin dashboard - add your template"
+
+# Add this function for crypto prices
+def get_crypto_prices():
+    return {'BTC': 50000.0, 'ETH': 3000.0, 'SOL': 100.0}
+
+# Make function available to templates
+@app.context_processor
+def utility_processor():
+    return dict(usd_to_crypto=lambda usd, crypto: usd / get_crypto_prices().get(crypto, 1))
 if __name__ == '__main__':
     initialize_database()
     
@@ -162,3 +200,4 @@ if __name__ == '__main__':
 else:
     # For Render deployment
     initialize_database()
+
