@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>Order Management</h1>
+
+<div class="admin-section">
+    <h2>All Orders</h2>
+    <div style="display: grid; gap: 1rem;">
+        {% for order in orders %}
+        <div style="background-color: #2a2a2a; padding: 1.5rem; border-radius: 8px; border: 1px solid #333;">
+            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem;">
+                <div>
+                    <h4>Order #{{ order.id }} - {{ order.product.title }}</h4>
+                    <p><strong>User:</strong> {{ order.user.username }}</p>
+                    <p><strong>Amount:</strong> ${{ "%.2f"|format(order.product.price_usd) }} USD ({{ "%.6f"|format(order.crypto_amount) if order.crypto_type == 'BTC' else "%.4f"|format(order.crypto_amount) if order.crypto_type == 'ETH' else "%.2f"|format(order.crypto_amount) }} {{ order.crypto_type }})</p>
+                    <p><strong>Wallet:</strong> {{ order.wallet_address }}</p>
+                </div>
+                <div style="text-align: right;">
+                    <div style="margin-bottom: 0.5rem;">
+                        {% if order.admin_paid %}
+                        <span style="color: #00ff88;">Completed</span>
+                        {% elif order.user_paid %}
+                        <span style="color: #ffaa00;">Pending Verification</span>
+                        {% else %}
+                        <span style="color: #ff4444;">Awaiting Payment</span>
+                        {% endif %}
+                    </div>
+                    {% if order.user_paid and not order.admin_paid %}
+                    <button onclick="markOrderPaid({{ order.id }})" class="btn">Mark as Paid</button>
+                    {% endif %}
+                    {% if not order.admin_paid %}
+                    <a href="{{ url_for('admin_deliver_order', order_id=order.id) }}" class="btn btn-secondary">Deliver Product</a>
+                    {% endif %}
+                </div>
+            </div>
+            <div style="background-color: #1a1a1a; padding: 1rem; border-radius: 4px;">
+                <p><strong>Delivery Instructions:</strong></p>
+                <p>{{ order.delivery_location }}</p>
+            </div>
+            {% if order.delivery_file %}
+            <div style="background-color: #1a1a1a; padding: 1rem; border-radius: 4px; margin-top: 0.5rem;">
+                <p><strong>Product Delivered:</strong> 
+                    <a href="{{ url_for('download_delivery', order_id=order.id) }}" class="download-btn">Download File</a>
+                </p>
+                {% if order.delivery_notes %}
+                <p><strong>Delivery Notes:</strong> {{ order.delivery_notes }}</p>
+                {% endif %}
+            </div>
+            {% endif %}
+            {% if order.user_rating %}
+            <div style="background-color: #1a1a1a; padding: 1rem; border-radius: 4px; margin-top: 0.5rem;">
+                <p><strong>User Rating:</strong> 
+                    <span class="star-rating rating-display">
+                        {% for i in range(5) %}
+                            <span class="star {% if i < order.user_rating %}filled{% endif %}">★</span>
+                        {% endfor %}
+                    </span>
+                </p>
+                {% if order.user_review %}
+                <p><strong>User Review:</strong> {{ order.user_review }}</p>
+                {% endif %}
+            </div>
+            {% endif %}
+            <div style="margin-top: 0.5rem; font-size: 0.9rem; color: #888;">
+                Ordered: {{ order.created_at.strftime('%Y-%m-%d %H:%M') }}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

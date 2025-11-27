@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div style="max-width: 400px; margin: 0 auto;">
+    <h2>Register</h2>
+    <form method="POST">
+        <div class="form-group">
+            <label for="username">Username</label>
+            <input type="text" class="form-control" id="username" name="username" required>
+        </div>
+        <div class="form-group">
+            <label for="password">Password</label>
+            <input type="password" class="form-control" id="password" name="password" required>
+        </div>
+        <button type="submit" class="btn" style="width: 100%;">Create Account</button>
+    </form>
+    <div style="background-color: #2a2a2a; padding: 1rem; border-radius: 4px; margin-top: 1rem;">
+        <p><strong>Note:</strong> You will receive a recovery phrase. Save it securely as there is no password recovery.</p>
+    </div>
+</div>
+{% endblock %}

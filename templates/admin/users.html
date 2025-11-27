@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>User Management</h1>
+
+<div class="admin-section">
+    <h2>All Users</h2>
+    <div class="user-list">
+        {% for user in users %}
+        <div class="user-card">
+            <div class="user-info">
+                <div class="user-username">{{ user.username }}</div>
+                <div class="user-details">
+                    {% if user.is_admin %}<strong>ADMIN</strong> • {% endif %}
+                    Created: {{ user.created_at.strftime('%Y-%m-%d') }} • 
+                    Status: <span style="color: {% if user.is_active %}#00ff88{% else %}#ff4444{% endif %};">
+                        {{ 'Active' if user.is_active else 'Inactive' }}
+                    </span> •
+                    Orders: {{ user.orders|length }}
+                </div>
+            </div>
+            <div class="user-actions">
+                <button onclick="toggleUser({{ user.id }})" class="btn btn-secondary">
+                    {{ 'Deactivate' if user.is_active else 'Activate' }}
+                </button>
+                <button onclick="changeUserPassword({{ user.id }})" class="btn">Change Password</button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

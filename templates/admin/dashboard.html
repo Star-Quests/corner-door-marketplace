@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>Admin Dashboard</h1>
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-number">{{ stats.total_orders }}</div>
+        <div class="stat-label">Total Orders</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number">{{ stats.pending_orders }}</div>
+        <div class="stat-label">Pending Orders</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number">{{ stats.total_products }}</div>
+        <div class="stat-label">Products</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number">{{ stats.total_users }}</div>
+        <div class="stat-label">Users</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number">{{ stats.unread_notifications }}</div>
+        <div class="stat-label">Your Unread Notifications</div>
+    </div>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+    <a href="{{ url_for('admin_products') }}" class="btn" style="text-align: center;">Manage Products</a>
+    <a href="{{ url_for('admin_orders') }}" class="btn" style="text-align: center;">View Orders</a>
+    <a href="{{ url_for('admin_wallets') }}" class="btn" style="text-align: center;">Wallet Addresses</a>
+    <a href="{{ url_for('admin_users') }}" class="btn" style="text-align: center;">User Management</a>
+</div>
+{% endblock %}

@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div style="max-width: 800px; margin: 0 auto;">
+    <h1>📬 Notifications</h1>
+    
+    {% if notifications %}
+    <div class="notifications-list">
+        {% for notification in notifications %}
+        <div class="notification-item {% if not notification.is_read %}unread{% endif %}" 
+             style="background-color: #1a1a1a; padding: 1.5rem; border-radius: 8px; margin-bottom: 1rem; border: 1px solid #333; white-space: pre-line;">
+            <div class="notification-message" style="font-size: 1rem; line-height: 1.5; margin-bottom: 1rem;">
+                {{ notification.message }}
+            </div>
+            <div class="notification-time" style="display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; color: #888;">
+                <span>{{ notification.created_at.strftime('%Y-%m-%d %H:%M') }}</span>
+                {% if notification.order_id %}
+                <a href="{{ url_for('order_details', order_id=notification.order_id) }}" class="btn" style="padding: 0.3rem 0.8rem; font-size: 0.8rem;">
+                    🔍 View Order
+                </a>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    
+    <div style="text-align: center; margin-top: 2rem;">
+        <form method="POST" action="{{ url_for('clear_cart') }}" style="display: inline;">
+            <button type="submit" class="btn btn-secondary" onclick="return confirm('Clear all notifications?')">
+                🗑️ Clear All Notifications
+            </button>
+        </form>
+    </div>
+    {% else %}
+    <div class="text-center" style="padding: 3rem;">
+        <h3>📭 No notifications</h3>
+        <p>You're all caught up! Check back later for updates.</p>
+        <a href="{{ url_for('index') }}" class="btn">🏠 Back to Home</a>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.notification-item.unread {
+    border-left: 4px solid #00ff88;
+    background-color: #2a2a2a;
+}
+
+.notification-item:hover {
+    border-color: #00ff88;
+    transform: translateY(-2px);
+    transition: all 0.3s ease;
+}
+</style>
+{% endblock %}

@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>Manage Products</h1>
+
+<div class="admin-section">
+    <h2>Add New Product</h2>
+    <form method="POST" enctype="multipart/form-data" style="display: grid; gap: 1rem;">
+        <input type="text" class="form-control" name="title" placeholder="Product Title" required>
+        <textarea class="form-control" name="description" placeholder="Product Description" required rows="4"></textarea>
+        <input type="number" step="0.01" class="form-control" name="price_usd" placeholder="Price in USD" required>
+        <select class="form-control" name="crypto_type" required>
+            <option value="BTC">Bitcoin</option>
+            <option value="ETH">Ethereum</option>
+            <option value="SOL">Solana</option>
+        </select>
+        
+        <div class="admin-controls">
+            <h4>Rating Controls</h4>
+            <div class="control-group">
+                <label for="admin_rating">Admin Star Rating:</label>
+                <select class="form-control" name="admin_rating" id="admin_rating">
+                    <option value="5">★★★★★ (5 Stars)</option>
+                    <option value="4">★★★★☆ (4 Stars)</option>
+                    <option value="3">★★★☆☆ (3 Stars)</option>
+                    <option value="2">★★☆☆☆ (2 Stars)</option>
+                    <option value="1">★☆☆☆☆ (1 Star)</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label>
+                    <input type="checkbox" name="allow_user_ratings" checked>
+                    Allow users to rate this product
+                </label>
+            </div>
+        </div>
+        
+        <input type="file" class="form-control" name="image" accept="image/*">
+        <button type="submit" class="btn">Add Product</button>
+    </form>
+</div>
+
+<div class="admin-section">
+    <h2>Existing Products ({{ products|length }})</h2>
+    <div style="display: grid; gap: 1rem;">
+        {% for product in products %}
+        <div style="background-color: #2a2a2a; padding: 1.5rem; border-radius: 8px; border: 1px solid #333;">
+            <div style="display: flex; justify-content: space-between; align-items: start;">
+                <div style="flex-grow: 1;">
+                    <h4>{{ product.title }}</h4>
+                    <p>{{ product.description }}</p>
+                    <p><strong>Price:</strong> ${{ "%.2f"|format(product.price_usd) }} USD</p>
+                    <p><strong>Crypto:</strong> {{ product.crypto_type }}</p>
+                    <div class="star-rating rating-display">
+                        {% for i in range(5) %}
+                            <span class="star {% if i < product.admin_rating %}filled{% endif %}">★</span>
+                        {% endfor %}
+                        <span style="margin-left: 0.5rem; color: #888;">
+                            ({{ product.admin_rating }} stars)
+                            {% if product.allow_user_ratings %}+ User Ratings{% endif %}
+                        </span>
+                    </div>
+                </div>
+                <div style="text-align: right;">
+                    <p><strong>Status:</strong> {{ 'Active' if product.is_active else 'Inactive' }}</p>
+                    <p><strong>Created:</strong> {{ product.created_at.strftime('%Y-%m-%d') }}</p>
+                    <p><strong>Orders:</strong> {{ product.orders|length }}</p>
+                    <div style="margin-top: 1rem;">
+                        <button onclick="deleteProduct({{ product.id }})" class="delete-btn">
+                            Delete Product
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

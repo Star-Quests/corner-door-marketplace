@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div style="max-width: 800px; margin: 0 auto;">
+    <a href="{{ url_for('index') }}" class="btn btn-secondary">← Back to Products</a>
+    
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-top: 2rem;">
+        <div>
+            {% if product.image_filename %}
+            <img src="{{ url_for('static', filename='uploads/' + product.image_filename) }}" 
+                 alt="{{ product.title }}" style="width: 100%; border-radius: 8px;">
+            {% else %}
+            <div style="background-color: #333; height: 300px; display: flex; align-items: center; justify-content: center; border-radius: 8px;">
+                No Image Available
+            </div>
+            {% endif %}
+        </div>
+        
+        <div>
+            <h1>{{ product.title }}</h1>
+            
+            <div class="price-display">
+                <div class="usd-price">${{ "%.2f"|format(product.price_usd) }} USD</div>
+                <div class="crypto-prices">
+                    <div class="crypto-price">
+                        <span class="amount">{{ "%.6f"|format(crypto_amounts.BTC) }}</span> BTC
+                    </div>
+                    <div class="crypto-price">
+                        <span class="amount">{{ "%.4f"|format(crypto_amounts.ETH) }}</span> ETH
+                    </div>
+                    <div class="crypto-price">
+                        <span class="amount">{{ "%.2f"|format(crypto_amounts.SOL) }}</span> SOL
+                    </div>
+                </div>
+            </div>
+            
+            <div class="star-rating rating-display">
+                {% for i in range(5) %}
+                    <span class="star {% if i < product.admin_rating %}filled{% endif %}">★</span>
+                {% endfor %}
+                <span style="margin-left: 0.5rem; color: #888;">(Admin Rating)</span>
+            </div>
+            
+            <div style="margin: 2rem 0;">
+                <h3>Description</h3>
+                <p>{{ product.description }}</p>
+            </div>
+            
+            {% if current_user.is_authenticated %}
+            <div style="display: flex; gap: 1rem;">
+                <a href="{{ url_for('buy_product', product_id=product.id) }}" class="btn">Buy Now</a>
+                <form method="POST" action="{{ url_for('add_to_cart', product_id=product.id) }}" style="display: inline-block;">
+                    <button type="submit" class="btn btn-secondary">Add to Cart</button>
+                </form>
+            </div>
+            {% else %}
+            <p><a href="{{ url_for('login') }}">Login</a> to purchase this item</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

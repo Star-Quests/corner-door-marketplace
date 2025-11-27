@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div style="max-width: 600px; margin: 0 auto;">
+    <h1>Deliver Order #{{ order.id }}</h1>
+    
+    <div class="order-info">
+        <h3>{{ order.product.title }}</h3>
+        <p><strong>Customer:</strong> {{ order.user.username }}</p>
+        <p><strong>Amount:</strong> ${{ "%.2f"|format(order.product.price_usd) }} USD</p>
+        <p><strong>Crypto Received:</strong> {{ "%.6f"|format(order.crypto_amount) if order.crypto_type == 'BTC' else "%.4f"|format(order.crypto_amount) if order.crypto_type == 'ETH' else "%.2f"|format(order.crypto_amount) }} {{ order.crypto_type }}</p>
+        <p><strong>Delivery Instructions:</strong> {{ order.delivery_location }}</p>
+    </div>
+    
+    <div class="delivery-section">
+        <h3>Product Delivery</h3>
+        <form method="POST" enctype="multipart/form-data">
+            <div class="form-group">
+                <label for="delivery_file">Upload Product File:</label>
+                <input type="file" class="form-control" id="delivery_file" name="delivery_file" 
+                       accept=".pdf,.doc,.docx,.txt,.zip,.rar,.mp4,.avi,.mov,.jpg,.jpeg,.png,.gif" required>
+                <small>Supported: PDF, Word, Text, ZIP, Videos, Images (Max 50MB)</small>
+            </div>
+            
+            <div class="form-group">
+                <label for="delivery_notes">Delivery Notes (Optional):</label>
+                <textarea class="form-control" id="delivery_notes" name="delivery_notes" 
+                         rows="4" placeholder="Any additional instructions or notes for the customer..."></textarea>
+            </div>
+            
+            <button type="submit" class="btn">Deliver Product</button>
+            <a href="{{ url_for('admin_orders') }}" class="btn btn-secondary">Cancel</a>
+        </form>
+    </div>
+</div>
+{% endblock %}

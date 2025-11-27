@@ -1,0 +1,476 @@
+// CORNER DOOR Marketplace JavaScript
+document.addEventListener('DOMContentLoaded', function() {
+    // Store previous prices for change calculation
+    let previousPrices = {
+        BTC: parseFloat(document.getElementById('btc-price')?.textContent || 50000),
+        ETH: parseFloat(document.getElementById('eth-price')?.textContent || 3000),
+        SOL: parseFloat(document.getElementById('sol-price')?.textContent || 100)
+    };
+
+    // Auto-hide flash messages after 5 seconds
+    const flashMessages = document.querySelectorAll('.alert');
+    flashMessages.forEach(message => {
+        setTimeout(() => {
+            message.style.opacity = '0';
+            message.style.transition = 'opacity 0.3s ease';
+            setTimeout(() => {
+                if (message.parentNode) {
+                    message.parentNode.removeChild(message);
+                }
+            }, 300);
+        }, 5000);
+    });
+
+    // Copy wallet address to clipboard
+    window.copyAddress = function(text) {
+        navigator.clipboard.writeText(text).then(() => {
+            showNotification('Address copied to clipboard!');
+        }).catch(err => {
+            console.error('Failed to copy: ', err);
+            showNotification('Failed to copy address', 'error');
+        });
+    };
+
+    // Show notification function
+    function showNotification(message, type = 'success') {
+        const existingNotifications = document.querySelectorAll('.notification');
+        existingNotifications.forEach(notif => notif.remove());
+
+        const notification = document.createElement('div');
+        notification.className = `notification alert alert-${type}`;
+        notification.textContent = message;
+        notification.style.position = 'fixed';
+        notification.style.top = '20px';
+        notification.style.right = '20px';
+        notification.style.zIndex = '10000';
+        notification.style.maxWidth = '300px';
+        
+        document.body.appendChild(notification);
+
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
+        }, 3000);
+    }
+
+    // Real-time notification check
+    function checkNotifications() {
+        if (document.querySelector('.notification-link')) {
+            fetch('/notifications/count')
+                .then(response => response.json())
+                .then(data => {
+                    const badge = document.querySelector('.notification-badge');
+                    if (data.count > 0) {
+                        if (!badge) {
+                            const link = document.querySelector('.notification-link');
+                            const newBadge = document.createElement('span');
+                            newBadge.className = 'notification-badge';
+                            newBadge.textContent = data.count;
+                            link.appendChild(newBadge);
+                        } else {
+                            badge.textContent = data.count;
+                        }
+                    } else if (badge) {
+                        badge.remove();
+                    }
+                })
+                .catch(console.error);
+        }
+    }
+
+    // Professional crypto price updates
+    function updateCryptoPrices() {
+        const statusIndicator = document.getElementById('status-indicator');
+        const lastUpdate = document.getElementById('last-update');
+        
+        // Show updating state
+        statusIndicator.className = 'status-indicator updating';
+        lastUpdate.textContent = 'Updating...';
+
+        fetch('/crypto-prices')
+            .then(response => response.json())
+            .then(prices => {
+                // Update price display with change indicators
+                updatePriceWithChange('btc-price', 'btc-change', prices.BTC, previousPrices.BTC);
+                updatePriceWithChange('eth-price', 'eth-change', prices.ETH, previousPrices.ETH);
+                updatePriceWithChange('sol-price', 'sol-change', prices.SOL, previousPrices.SOL);
+                
+                // Update previous prices
+                previousPrices = { ...prices };
+                
+                // Update product prices if on product pages
+                updateProductPrices(prices);
+                
+                // Show success state
+                statusIndicator.className = 'status-indicator live';
+                lastUpdate.textContent = new Date().toLocaleTimeString();
+                
+                // Return to normal after 2 seconds
+                setTimeout(() => {
+                    statusIndicator.className = 'status-indicator';
+                }, 2000);
+            })
+            .catch(error => {
+                console.log('Price update failed:', error);
+                
+                // Show error state
+                statusIndicator.className = 'status-indicator error';
+                lastUpdate.textContent = 'Update failed';
+                
+                // Return to normal after 3 seconds
+                setTimeout(() => {
+                    statusIndicator.className = 'status-indicator';
+                    lastUpdate.textContent = new Date().toLocaleTimeString();
+                }, 3000);
+            });
+    }
+
+    function updatePriceWithChange(priceId, changeId, newPrice, oldPrice) {
+        const priceElement = document.getElementById(priceId);
+        const changeElement = document.getElementById(changeId);
+        
+        if (!priceElement || !changeElement) return;
+        
+        const change = ((newPrice - oldPrice) / oldPrice) * 100;
+        const changeFormatted = change >= 0 ? `+${change.toFixed(2)}%` : `${change.toFixed(2)}%`;
+        
+        // Update price
+        priceElement.textContent = newPrice.toFixed(2);
+        
+        // Update change indicator
+        changeElement.textContent = changeFormatted;
+        changeElement.className = `price-change ${change >= 0 ? 'positive' : 'negative'}`;
+        
+        // Add flash animation for significant changes
+        if (Math.abs(change) > 0.1) {
+            priceElement.classList.add('price-flash');
+            setTimeout(() => {
+                priceElement.classList.remove('price-flash');
+            }, 1000);
+        }
+    }
+
+    function updateProductPrices(prices) {
+        // Update crypto amounts on product pages
+        const cryptoPrices = document.querySelectorAll('.crypto-price .amount');
+        cryptoPrices.forEach(element => {
+            const parent = element.closest('.crypto-price');
+            if (parent) {
+                const cryptoType = parent.textContent.includes('BTC') ? 'BTC' : 
+                                 parent.textContent.includes('ETH') ? 'ETH' : 'SOL';
+                const usdPriceElement = parent.closest('.price-display')?.querySelector('.usd-price');
+                if (usdPriceElement) {
+                    const usdMatch = usdPriceElement.textContent.match(/\$([\d.]+)/);
+                    if (usdMatch) {
+                        const usdPrice = parseFloat(usdMatch[1]);
+                        const cryptoAmount = usdPrice / prices[cryptoType];
+                        element.textContent = cryptoType === 'BTC' ? cryptoAmount.toFixed(6) :
+                                            cryptoType === 'ETH' ? cryptoAmount.toFixed(4) :
+                                            cryptoAmount.toFixed(2);
+                    }
+                }
+            }
+        });
+    }
+
+    // Check notifications every 30 seconds, update prices every 60 seconds
+    setInterval(checkNotifications, 30000);
+    setInterval(updateCryptoPrices, 60000);
+    checkNotifications();
+    updateCryptoPrices();
+
+    // Star rating functionality
+    window.initializeStarRating = function(container, currentRating, editable = false) {
+        const stars = container.querySelectorAll('.star');
+        
+        // Clear existing filled stars
+        stars.forEach(star => star.classList.remove('filled'));
+        
+        // Fill stars up to current rating
+        stars.forEach((star, index) => {
+            if (index < currentRating) {
+                star.classList.add('filled');
+            }
+            
+            if (editable) {
+                star.addEventListener('click', () => {
+                    const rating = parseInt(star.getAttribute('data-rating'));
+                    
+                    // Update star display
+                    stars.forEach((s, i) => {
+                        if (i < rating) {
+                            s.classList.add('filled');
+                        } else {
+                            s.classList.remove('filled');
+                        }
+                    });
+                    
+                    // Trigger change event
+                    container.dispatchEvent(new CustomEvent('ratingChange', {
+                        detail: rating
+                    }));
+                });
+
+                // Add hover effects for editable ratings
+                star.addEventListener('mouseenter', () => {
+                    if (editable) {
+                        const rating = parseInt(star.getAttribute('data-rating'));
+                        stars.forEach((s, i) => {
+                            if (i < rating) {
+                                s.style.color = '#ffed4a';
+                            }
+                        });
+                    }
+                });
+
+                star.addEventListener('mouseleave', () => {
+                    if (editable) {
+                        stars.forEach((s, i) => {
+                            if (!s.classList.contains('filled')) {
+                                s.style.color = '';
+                            }
+                        });
+                    }
+                });
+            }
+        });
+    };
+
+    // Initialize all star ratings on page load
+    document.querySelectorAll('.star-rating.rating-display').forEach(rating => {
+        const filledCount = Array.from(rating.querySelectorAll('.star')).filter(star => 
+            star.classList.contains('filled')
+        ).length;
+        window.initializeStarRating(rating, filledCount, false);
+    });
+
+    // Initialize editable star ratings
+    document.querySelectorAll('.star-rating[data-editable="true"]').forEach(rating => {
+        window.initializeStarRating(rating, 0, true);
+    });
+
+    // Admin functions
+    window.markOrderPaid = function(orderId) {
+        if (confirm('Are you sure you want to mark this order as paid?')) {
+            fetch(`/admin/order/${orderId}/mark_paid`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification('Order marked as paid successfully!');
+                    setTimeout(() => {
+                        location.reload();
+                    }, 1000);
+                } else {
+                    showNotification(data.error || 'Failed to mark order as paid', 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification('Error updating order', 'error');
+            });
+        }
+    };
+
+    window.toggleUser = function(userId) {
+        const action = confirm('Toggle user active status?');
+        if (action) {
+            fetch(`/admin/toggle_user/${userId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification('User status updated successfully!');
+                    setTimeout(() => {
+                        location.reload();
+                    }, 1000);
+                } else {
+                    showNotification(data.error || 'Failed to update user status', 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification('Error updating user', 'error');
+            });
+        }
+    };
+
+    window.changeUserPassword = function(userId) {
+        const newPassword = prompt('Enter new password for this user (min 6 characters):');
+        if (newPassword && newPassword.length >= 6) {
+            const formData = new FormData();
+            formData.append('new_password', newPassword);
+            
+            fetch(`/admin/change_user_password/${userId}`, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification('User password changed successfully!');
+                } else {
+                    showNotification(data.error || 'Failed to change password', 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification('Error changing password', 'error');
+            });
+        } else if (newPassword) {
+            alert('Password must be at least 6 characters long.');
+        }
+    };
+
+    window.deleteWallet = function(walletId) {
+        if (confirm('Are you sure you want to delete this wallet address?')) {
+            fetch(`/admin/delete_wallet/${walletId}`, {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification('Wallet deleted successfully!');
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    showNotification(data.error || 'Failed to delete wallet', 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification('Error deleting wallet', 'error');
+            });
+        }
+    };
+
+    // UPDATED: Product deletion now works even with orders
+    window.deleteProduct = function(productId) {
+        if (confirm('Are you sure you want to delete this product? This action cannot be undone.')) {
+            fetch(`/admin/delete_product/${productId}`, {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification('Product deleted successfully!');
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    showNotification(data.error || 'Failed to delete product', 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification('Error deleting product', 'error');
+            });
+        }
+    };
+
+    // Form validation enhancement
+    const forms = document.querySelectorAll('form');
+    forms.forEach(form => {
+        form.addEventListener('submit', function(e) {
+            const passwordInputs = form.querySelectorAll('input[type="password"]');
+            let isValid = true;
+
+            passwordInputs.forEach(input => {
+                if (input.name.includes('password') && input.value.length < 6) {
+                    isValid = false;
+                    input.style.borderColor = '#ff4444';
+                    showNotification('Password must be at least 6 characters long', 'error');
+                } else {
+                    input.style.borderColor = '';
+                }
+            });
+
+            if (!isValid) {
+                e.preventDefault();
+            }
+        });
+    });
+
+    // Add loading states to buttons
+    const buttons = document.querySelectorAll('.btn');
+    buttons.forEach(button => {
+        button.addEventListener('click', function() {
+            if (this.type === 'submit' || this.getAttribute('onclick')) {
+                this.style.opacity = '0.7';
+                this.style.cursor = 'wait';
+                
+                setTimeout(() => {
+                    this.style.opacity = '';
+                    this.style.cursor = '';
+                }, 2000);
+            }
+        });
+    });
+
+    // Auto-focus on first input in forms
+    const firstInput = document.querySelector('form input:not([type="hidden"])');
+    if (firstInput && !firstInput.value) {
+        firstInput.focus();
+    }
+
+    console.log('CORNER DOOR Marketplace initialized successfully');
+});
+
+// Utility function for confirmation dialogs
+window.confirmAction = function(message, callback) {
+    if (confirm(message)) {
+        callback();
+    }
+};
+
+// Rating submission function
+window.submitRating = function(orderId) {
+    const ratingContainer = document.getElementById('userRating');
+    if (!ratingContainer) return;
+
+    const stars = ratingContainer.querySelectorAll('.star');
+    let rating = 0;
+    
+    stars.forEach(star => {
+        if (star.classList.contains('filled')) {
+            rating = Math.max(rating, parseInt(star.getAttribute('data-rating')));
+        }
+    });
+    
+    if (rating === 0) {
+        alert('Please select a rating');
+        return;
+    }
+    
+    const review = document.getElementById('review')?.value || '';
+    
+    fetch(`/order/${orderId}/rate`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            rating: rating,
+            review: review
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Rating submitted successfully!');
+            location.reload();
+        } else {
+            alert(data.error || 'Failed to submit rating');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error submitting rating');
+    });
+};

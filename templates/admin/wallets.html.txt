@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>Wallet Addresses</h1>
+
+<div class="admin-section">
+    <h2>Add New Wallet</h2>
+    <form method="POST" style="display: grid; grid-template-columns: 1fr 2fr auto; gap: 1rem;">
+        <select class="form-control" name="crypto_type" required>
+            <option value="BTC">Bitcoin</option>
+            <option value="ETH">Ethereum</option>
+            <option value="SOL">Solana</option>
+        </select>
+        <input type="text" class="form-control" name="address" placeholder="Wallet Address" required>
+        <button type="submit" class="btn">Add Wallet</button>
+    </form>
+</div>
+
+<div class="admin-section">
+    <h2>Existing Wallets</h2>
+    <div style="display: grid; gap: 1rem;">
+        {% for wallet in wallets %}
+        <div style="background-color: #2a2a2a; padding: 1.5rem; border-radius: 8px; border: 1px solid #333;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <p><strong>{{ wallet.crypto_type }}</strong></p>
+                    <p style="font-family: monospace; word-break: break-all; margin: 0.5rem 0;">{{ wallet.address }}</p>
+                    <p><strong>Status:</strong> {{ 'Active' if wallet.is_active else 'Inactive' }}</p>
+                </div>
+                <div>
+                    <button onclick="deleteWallet({{ wallet.id }})" class="delete-btn">Delete</button>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
