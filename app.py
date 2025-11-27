@@ -21,6 +21,7 @@ app.config['PRODUCT_DELIVERY_FOLDER'] = 'static/deliveries'
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024
 
 db = SQLAlchemy(app)
+with app.app_context(): db.create_all()
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
