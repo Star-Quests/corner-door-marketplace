@@ -20,7 +20,10 @@ app.config['UPLOAD_FOLDER'] = 'static/uploads'
 app.config['PRODUCT_DELIVERY_FOLDER'] = 'static/deliveries'
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024
 
-db = SQLAlchemy(app)``n``n# Force create tables in PostgreSQL``nwith app.app_context(): db.create_all()
+db = SQLAlchemy(app)
+
+# Force create tables in PostgreSQL
+with app.app_context(): db.create_all()``n``n# Force create tables in PostgreSQL``nwith app.app_context(): db.create_all()
 with app.app_context(): db.create_all()
 login_manager = LoginManager()
 login_manager.init_app(app)
@@ -1077,3 +1080,4 @@ if __name__ == '__main__':
     print("")
     
     app.run(debug=True, port=5000)
+
