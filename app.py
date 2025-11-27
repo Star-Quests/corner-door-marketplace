@@ -877,28 +877,30 @@ def admin_delete_product(product_id):
         # Get the product
         product = Product.query.get_or_404(product_id)
         
-        # 1. Delete all cart items for this product
-        CartItem.query.filter_by(product_id=product_id).delete()
+        # NUCLEAR DELETE - PostgreSQL compatible:
         
-        # 2. For orders, we have two options:
-        # Option A: Delete orders that reference this product
-        Order.query.filter_by(product_id=product_id).delete()
+        # 1. Delete notifications for orders of this product
+        orders = Order.query.filter_by(product_id=product_id).all()
+        for order in orders:
+            Notification.query.filter_by(order_id=order.id).delete(synchronize_session=False)
         
-        # Option B: Or keep orders but set a flag (commented out for now)
-        # orders = Order.query.filter_by(product_id=product_id).all()
-        # for order in orders:
-        #     order.product_id = None  # This would require changing the database schema
+        # 2. Delete orders for this product
+        Order.query.filter_by(product_id=product_id).delete(synchronize_session=False)
         
-        # 3. Now delete the product
+        # 3. Delete cart items for this product  
+        CartItem.query.filter_by(product_id=product_id).delete(synchronize_session=False)
+        
+        # 4. Delete the product itself
         db.session.delete(product)
+        
+        # 5. Commit everything
         db.session.commit()
         
-        return jsonify({'success': True, 'message': 'Product and related orders deleted successfully!'})
+        return jsonify({'success': True, 'message': 'Product deleted successfully with all related data!'})
         
     except Exception as e:
         db.session.rollback()
-        print(f"❌ Delete product error: {str(e)}")
-        return jsonify({'error': f'Failed to delete product: {str(e)}'}), 500
+        return jsonify({'error': f'Delete failed: {str(e)}'}), 500
 
 @app.route('/admin/wallets', methods=['GET', 'POST'])
 @login_required
