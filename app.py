@@ -34,8 +34,27 @@ def initialize_database():
         create_first_admin()
         print("✅ DATABASE INITIALIZED!")
 
-# REST OF YOUR EXISTING CODE (models, routes, etc.)...
-# [PASTE ALL YOUR EXISTING MODELS AND ROUTES HERE]
+# ADD THE MISSING FUNCTION
+def create_first_admin():
+    if not User.query.filter_by(username='corner').first():
+        admin = User(
+            username='corner',
+            password_hash=generate_password_hash('cornerdooradmin4life'),
+            is_admin=True,
+            is_active=True,
+            recovery_phrase='primary admin account'
+        )
+        db.session.add(admin)
+        db.session.commit()
+        print("🎉 PRIMARY ADMIN CREATED: username='corner', password='cornerdooradmin4life'")
+
+# REST OF YOUR EXISTING MODELS AND ROUTES GO HERE...
+# [PASTE ALL YOUR USER, PRODUCT, ORDER, CHAT MESSAGE MODELS HERE]
+# [PASTE ALL YOUR ROUTES HERE]
+
+@login_manager.user_loader
+def load_user(user_id):
+    return db.session.get(User, int(user_id))
 
 # At the bottom, replace the main block:
 if __name__ == '__main__':
