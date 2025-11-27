@@ -1,0 +1,12 @@
+﻿services:
+  - type: web
+    name: corner-door-marketplace
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        value: "sqlite:///corner_door.db"
