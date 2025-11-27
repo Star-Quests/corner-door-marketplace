@@ -26,7 +26,7 @@ login_manager.init_app(app)
 login_manager.login_view = 'login'
 login_manager.login_message_category = 'info'
 
-# Database initialization function
+# Database initialization function (defined early but called later)
 def initialize_database():
     with app.app_context():
         print("🔄 CREATING DATABASE TABLES...")
@@ -34,7 +34,98 @@ def initialize_database():
         create_first_admin()
         print("✅ DATABASE INITIALIZED!")
 
-# ADD THE MISSING FUNCTION
+# ========== MODEL DEFINITIONS ==========
+class User(UserMixin, db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    password_hash = db.Column(db.String(120), nullable=False)
+    recovery_phrase = db.Column(db.String(200))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    is_active = db.Column(db.Boolean, default=True)
+    is_admin = db.Column(db.Boolean, default=False)
+    ip_hash = db.Column(db.String(64))
+    unread_notifications = db.Column(db.Integer, default=0)
+    unread_messages = db.Column(db.Integer, default=0)
+
+class Product(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text)
+    price_usd = db.Column(db.Float, nullable=False)
+    crypto_type = db.Column(db.String(10), nullable=False)
+    image_filename = db.Column(db.String(200))
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    admin_rating = db.Column(db.Integer, default=5)
+    allow_user_ratings = db.Column(db.Boolean, default=True)
+
+class Wallet(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    crypto_type = db.Column(db.String(10), nullable=False)
+    address = db.Column(db.String(200), nullable=False)
+    is_active = db.Column(db.Boolean, default=True)
+
+class Order(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    product_id = db.Column(db.Integer, db.ForeignKey('product.id'), nullable=False)
+    crypto_type = db.Column(db.String(10), nullable=False)
+    wallet_address = db.Column(db.String(200), nullable=False)
+    crypto_amount = db.Column(db.Float)
+    user_paid = db.Column(db.Boolean, default=False)
+    admin_paid = db.Column(db.Boolean, default=False)
+    delivery_location = db.Column(db.Text)
+    delivery_file = db.Column(db.String(500))
+    delivery_notes = db.Column(db.Text)
+    user_rating = db.Column(db.Integer)
+    user_review = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    user = db.relationship('User', backref='orders')
+    product = db.relationship('Product', backref='orders')
+
+class Notification(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    message = db.Column(db.Text, nullable=False)
+    is_read = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    order_id = db.Column(db.Integer, db.ForeignKey('order.id'), nullable=True)
+    
+    user = db.relationship('User', backref='notifications')
+    order = db.relationship('Order', backref='notifications')
+
+class Cart(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    user = db.relationship('User', backref='cart')
+    items = db.relationship('CartItem', backref='cart', cascade='all, delete-orphan')
+
+class CartItem(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    cart_id = db.Column(db.Integer, db.ForeignKey('cart.id'), nullable=False)
+    product_id = db.Column(db.Integer, db.ForeignKey('product.id'), nullable=False)
+    quantity = db.Column(db.Integer, default=1)
+    added_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    product = db.relationship('Product', backref='cart_items')
+
+class ChatMessage(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    message = db.Column(db.Text, nullable=False)
+    is_read = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    is_admin_reply = db.Column(db.Boolean, default=False)
+    reply_to = db.Column(db.Integer, db.ForeignKey('chat_message.id'), nullable=True)
+    
+    user = db.relationship('User', backref='chat_messages')
+    replies = db.relationship('ChatMessage', backref=db.backref('parent', remote_side=[id]))
+
+# ========== NOW DEFINE create_first_admin() AFTER MODELS ==========
 def create_first_admin():
     if not User.query.filter_by(username='corner').first():
         admin = User(
@@ -48,15 +139,14 @@ def create_first_admin():
         db.session.commit()
         print("🎉 PRIMARY ADMIN CREATED: username='corner', password='cornerdooradmin4life'")
 
-# REST OF YOUR EXISTING MODELS AND ROUTES GO HERE...
-# [PASTE ALL YOUR USER, PRODUCT, ORDER, CHAT MESSAGE MODELS HERE]
-# [PASTE ALL YOUR ROUTES HERE]
-
+# ========== ROUTES AND OTHER FUNCTIONS ==========
 @login_manager.user_loader
 def load_user(user_id):
     return db.session.get(User, int(user_id))
 
-# At the bottom, replace the main block:
+# ... [PASTE ALL YOUR EXISTING ROUTES HERE] ...
+
+# ========== APP STARTUP ==========
 if __name__ == '__main__':
     initialize_database()
     
