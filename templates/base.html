@@ -43,12 +43,11 @@
             <div class="logo">CORNER DOOR</div>
             <div class="nav-links">
                 <a href="{{ url_for('index') }}">Home</a>
+                <a href="{{ url_for('search') }}">🔍 Search</a>
                 {% if current_user.is_authenticated %}
                     {% if current_user.is_admin %}
                         <a href="{{ url_for('admin_dashboard') }}">Admin</a>
-                        <a href="{{ url_for('admin_chat') }}">💬 Admin Chat</a>
-                    {% else %}
-                        <a href="{{ url_for('chat') }}">💬 Chat</a>
+                        <a href="{{ url_for('admin_categories') }}">📁 Categories</a>
                     {% endif %}
                     <!-- Cart Link Added -->
                     <a href="{{ url_for('view_cart') }}">🛒 Cart</a>
@@ -60,14 +59,6 @@
                             {% endif %}
                         </a>
                     </div>
-                    {% if current_user.unread_messages > 0 and not current_user.is_admin %}
-                    <div class="notification-bell">
-                        <a href="{{ url_for('chat') }}" class="notification-link">
-                            💬
-                            <span class="notification-badge">{{ current_user.unread_messages }}</span>
-                        </a>
-                    </div>
-                    {% endif %}
                     <a href="{{ url_for('change_password') }}">Change Password</a>
                     <a href="{{ url_for('logout') }}">Logout ({{ current_user.username }})</a>
                 {% else %}

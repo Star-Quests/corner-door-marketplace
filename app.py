@@ -68,6 +68,18 @@ class User(UserMixin, db.Model):
             db.session.add(cart)
             db.session.commit()
         return cart
+    
+class Category(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), unique=True, nullable=False)
+    description = db.Column(db.Text)
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    products = db.relationship('Product', backref='category', lazy=True)
+
+    def __repr__(self):
+        return f'<Category {self.name}>'
 
 class Product(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -80,6 +92,7 @@ class Product(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     admin_rating = db.Column(db.Integer, default=5)
     allow_user_ratings = db.Column(db.Boolean, default=True)
+    category_id = db.Column(db.Integer, db.ForeignKey('category.id'), nullable=True)
 
 class Wallet(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -842,13 +855,17 @@ def admin_products():
         admin_rating = int(request.form.get('admin_rating', 5))
         allow_user_ratings = 'allow_user_ratings' in request.form
         
+        category_id = request.form.get('category_id') or None
+
         product = Product(
             title=title,
             description=description,
             price_usd=price_usd,
             crypto_type=crypto_type,
             admin_rating=admin_rating,
-            allow_user_ratings=allow_user_ratings
+            allow_user_ratings=allow_user_ratings,
+
+            category_id=category_id
         )
         
         if 'image' in request.files:
@@ -864,7 +881,8 @@ def admin_products():
         return redirect(url_for('admin_products'))
     
     products = Product.query.all()
-    return render_template('admin/products.html', products=products)
+    categories = Category.query.filter_by(is_active=True).all()
+    return render_template('admin/products.html', products=products, categories=categories)
 
 # UPDATED: Product deletion now allows deletion even with orders
 @app.route('/admin/delete_product/<int:product_id>', methods=['POST'])
@@ -1046,8 +1064,86 @@ def admin_change_user_password(user_id):
     db.session.commit()
     
     return jsonify({'success': True})
+# NEW: Search functionality
+@app.route('/search')
+def search():
+    query = request.args.get('q', '')
+    category_id = request.args.get('category', '')
+    
+    # Start with all active products
+    products_query = Product.query.filter_by(is_active=True)
+    
+    # Apply search filter
+    if query:
+        products_query = products_query.filter(
+            db.or_(
+                Product.title.ilike(f'%{query}%'),
+                Product.description.ilike(f'%{query}%')
+            )
+        )
+    
+    # Apply category filter
+    if category_id:
+        products_query = products_query.filter_by(category_id=category_id)
+    
+    products = products_query.all()
+    categories = Category.query.filter_by(is_active=True).all()
+    
+    return render_template('search.html', 
+                         products=products, 
+                         categories=categories,
+                         search_query=query,
+                         selected_category=category_id)
+
+# NEW: Category management routes
+@app.route('/admin/categories', methods=['GET', 'POST'])
+@login_required
+def admin_categories():
+    if not current_user.is_admin:
+        flash('Access denied', 'error')
+        return redirect(url_for('index'))
+    
+    if request.method == 'POST':
+        name = request.form['name']
+        description = request.form['description']
+        
+        if Category.query.filter_by(name=name).first():
+            flash('Category already exists', 'error')
+            return redirect(url_for('admin_categories'))
+        
+        category = Category(name=name, description=description)
+        db.session.add(category)
+        db.session.commit()
+        flash('Category added successfully!', 'success')
+        return redirect(url_for('admin_categories'))
+    
+    categories = Category.query.all()
+    return render_template('admin/categories.html', categories=categories)
+
+@app.route('/admin/delete_category/<int:category_id>', methods=['POST'])
+@login_required
+def admin_delete_category(category_id):
+    if not current_user.is_admin:
+        return jsonify({'error': 'Access denied'}), 403
+    
+    try:
+        category = Category.query.get_or_404(category_id)
+        
+        # Remove category from products (set to NULL)
+        Product.query.filter_by(category_id=category_id).update({'category_id': None})
+        
+        # Delete the category
+        db.session.delete(category)
+        db.session.commit()
+        
+        return jsonify({'success': True, 'message': 'Category deleted successfully!'})
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Failed to delete category: {str(e)}'}), 500
 
 def create_first_admin():
+    # Create admin user if doesn't exist
     if not User.query.filter_by(username='corner').first():
         admin = User(
             username='corner',
@@ -1059,6 +1155,11 @@ def create_first_admin():
         db.session.add(admin)
         db.session.commit()
         print("🎉 PRIMARY ADMIN CREATED: username='corner', password='cornerdooradmin4life'")
+    
+    # NO DEFAULT CATEGORIES - completely empty start
+    if Category.query.count() == 0:
+        print("📁 No categories found - you can add your own in the admin panel!")
+        
 
 if __name__ == '__main__':
     with app.app_context():
