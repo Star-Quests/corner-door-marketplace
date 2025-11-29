@@ -28,8 +28,24 @@ app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024
 
 db = SQLAlchemy(app)
 
-# Force create tables in PostgreSQL
-with app.app_context(): db.create_all()
+# Force create tables in PostgreSQL AND create admin user
+with app.app_context(): 
+    db.create_all()
+    
+    # Create admin user if doesn't exist
+    from app import User
+    from werkzeug.security import generate_password_hash
+    
+    if not User.query.filter_by(username='corner').first():
+        admin = User(
+            username='corner',
+            password_hash=generate_password_hash('cornerdooradmin4life'),
+            is_admin=True,
+            is_active=True
+        )
+        db.session.add(admin)
+        db.session.commit()
+        print("✅ Database tables and admin user created!")
 
 login_manager = LoginManager()
 login_manager.init_app(app)
