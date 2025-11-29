@@ -3,9 +3,14 @@
     name: corner-door-marketplace
     env: python
     plan: free
-    branch: main
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn app:app
     envVars:
-      - key: SECRET_KEY
-        generateValue: true
+      - key: PYTHON_VERSION
+        value: 3.11.0
+
+databases:
+  - name: corner-door-db
+    plan: free
+    databaseName: corner_door
+    user: corner_door_user

@@ -17,6 +17,12 @@
         {% endif %}
         
         <h3 class="product-title">{{ product.title }}</h3>
+
+        {% if product.category %}
+        <span style="background-color: #00ff88; color: black; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem;">
+            {{ product.category.name }}
+        </span>
+        {% endif %}
         
         <div class="price-display">
             <div class="usd-price">${{ "%.2f"|format(product.price_usd) }} USD</div>

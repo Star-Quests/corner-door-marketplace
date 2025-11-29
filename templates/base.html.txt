@@ -43,11 +43,15 @@
             <div class="logo">CORNER DOOR</div>
             <div class="nav-links">
                 <a href="{{ url_for('index') }}">Home</a>
+                <a href="{{ url_for('search') }}">🔍 Search</a>
                 {% if current_user.is_authenticated %}
                     {% if current_user.is_admin %}
                         <a href="{{ url_for('admin_dashboard') }}">Admin</a>
                     {% endif %}
-                    <!-- Cart Link Added -->
+                    {% if current_user.is_admin %}
+                       <a href="{{ url_for('admin_dashboard') }}">Admin</a>
+                       <a href="{{ url_for('admin_categories') }}">📁 Categories</a>
+                    {% endif %}
                     <a href="{{ url_for('view_cart') }}">🛒 Cart</a>
                     <div class="notification-bell">
                         <a href="{{ url_for('notifications') }}" class="notification-link">

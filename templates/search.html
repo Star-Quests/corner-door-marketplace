@@ -59,9 +59,11 @@
             
             <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
                 <a href="{{ url_for('product_detail', product_id=product.id) }}" class="btn" style="flex: 1;">View Details</a>
+                {% if current_user.is_authenticated %}
                 <form method="POST" action="{{ url_for('add_to_cart', product_id=product.id) }}" style="flex: 1;">
                     <button type="submit" class="btn">Add to Cart</button>
                 </form>
+                {% endif %}
             </div>
         </div>
         {% endfor %}
