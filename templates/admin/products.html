@@ -14,13 +14,6 @@
             <option value="ETH">Ethereum</option>
             <option value="SOL">Solana</option>
         </select>
-
-        <select class="form-control" name="category_id">
-            <option value="">No Category</option>
-            {% for category in categories %}
-            <option value="{{ category.id }}">{{ category.name }}</option>
-            {% endfor %}
-        </select>
         
         <div class="admin-controls">
             <h4>Rating Controls</h4>
@@ -74,7 +67,6 @@
                     <p><strong>Orders:</strong> {{ product.orders|length }}</p>
                     <div style="margin-top: 1rem;">
                         <button onclick="deleteProduct({{ product.id }})" class="delete-btn" 
-                                {% if product.orders|length > 0 %}disabled title="Cannot delete product with orders"{% endif %}>
                             Delete Product
                         </button>
                     </div>

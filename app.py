@@ -14,7 +14,13 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = 'corner-door-ultimate-fix-2024'
 
 # PostgreSQL Configuration
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///corner_door.db')
+if os.environ.get('DATABASE_URL'):
+    # Production - use PostgreSQL
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL').replace('postgres://', 'postgresql://')
+else:
+    # Development - use SQLite
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///corner_door.db'
+
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = 'static/uploads'
 app.config['PRODUCT_DELIVERY_FOLDER'] = 'static/deliveries'
@@ -921,32 +927,48 @@ def admin_delete_product(product_id):
         return jsonify({'error': 'Access denied'}), 403
     
     try:
-        # Get the product
+        # Get the product first to know what we're deleting
         product = Product.query.get_or_404(product_id)
+        product_title = product.title
         
-        # NUCLEAR DELETE - PostgreSQL compatible:
+        print(f"🔄 Starting deletion of product: {product_title} (ID: {product_id})")
         
-        # 1. Delete notifications for orders of this product
+        # POSTGRESQL-COMPATIBLE DELETION - THIS WILL WORK!
+        
+        # Step 1: Delete notifications for orders of this product
         orders = Order.query.filter_by(product_id=product_id).all()
-        for order in orders:
-            Notification.query.filter_by(order_id=order.id).delete(synchronize_session=False)
+        if orders:
+            order_ids = [order.id for order in orders]
+            print(f"📋 Found {len(order_ids)} orders to clean up")
+            
+            # Delete notifications for these orders
+            notifications_deleted = Notification.query.filter(Notification.order_id.in_(order_ids)).delete(synchronize_session=False)
+            print(f"🗑️  Deleted {notifications_deleted} notifications")
         
-        # 2. Delete orders for this product
-        Order.query.filter_by(product_id=product_id).delete(synchronize_session=False)
+        # Step 2: Delete the orders for this product
+        orders_deleted = Order.query.filter_by(product_id=product_id).delete(synchronize_session=False)
+        print(f"🗑️  Deleted {orders_deleted} orders")
         
-        # 3. Delete cart items for this product  
-        CartItem.query.filter_by(product_id=product_id).delete(synchronize_session=False)
+        # Step 3: Delete cart items for this product
+        cart_items_deleted = CartItem.query.filter_by(product_id=product_id).delete(synchronize_session=False)
+        print(f"🗑️  Deleted {cart_items_deleted} cart items")
         
-        # 4. Delete the product itself
+        # Step 4: Finally delete the product itself
         db.session.delete(product)
         
-        # 5. Commit everything
+        # Commit all changes
         db.session.commit()
         
-        return jsonify({'success': True, 'message': 'Product deleted successfully with all related data!'})
+        print(f"✅ SUCCESS: Product '{product_title}' completely deleted!")
+        
+        return jsonify({
+            'success': True, 
+            'message': f'Product "{product_title}" deleted successfully! Removed: {orders_deleted} orders, {cart_items_deleted} cart items'
+        })
         
     except Exception as e:
         db.session.rollback()
+        print(f"❌ DELETE FAILED: {str(e)}")
         return jsonify({'error': f'Delete failed: {str(e)}'}), 500
 
 @app.route('/admin/wallets', methods=['GET', 'POST'])
