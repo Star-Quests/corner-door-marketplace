@@ -51,10 +51,6 @@
                     {% else %}
                         <a href="{{ url_for('chat') }}">💬 Chat</a>
                     {% endif %}
-                    {% if current_user.is_admin %}
-                       <a href="{{ url_for('admin_dashboard') }}">Admin</a>
-                       <a href="{{ url_for('admin_categories') }}">📁 Categories</a>
-                    {% endif %}
                     <a href="{{ url_for('view_cart') }}">🛒 Cart</a>
                     <div class="notification-bell">
                         <a href="{{ url_for('notifications') }}" class="notification-link">
