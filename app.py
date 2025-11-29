@@ -309,6 +309,24 @@ def change_password():
         return redirect(url_for('index'))
     
     return render_template('change_password.html')
+@app.route('/debug-db')
+def debug_db():
+    try:
+        # Try to count products
+        product_count = Product.query.count()
+        user_count = User.query.count()
+        
+        return f"""
+        Products: {product_count}<br>
+        Users: {user_count}<br>
+        Database URL: {app.config['SQLALCHEMY_DATABASE_URI']}<br>
+        Tables exist: ✅
+        """
+    except Exception as e:
+        return f"""
+        Database Error: {str(e)}<br>
+        Tables missing: ❌
+        """
 
 @app.route('/notifications')
 @login_required
