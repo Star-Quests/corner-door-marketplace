@@ -1200,7 +1200,12 @@ def create_first_admin():
 if __name__ == '__main__':
     with app.app_context():
         print("🔄 INITIALIZING DATABASE...")
+        
+        # Force drop and recreate all tables to ensure schema is correct
+        db.drop_all()
         db.create_all()
+        print("✅ Database tables force-created with current schema")
+        
         create_first_admin()
         
         os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
