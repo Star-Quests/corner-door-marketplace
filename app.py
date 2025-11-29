@@ -200,6 +200,11 @@ else:
     app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///corner_door.db')
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-this')
 
+
+# Initialize database on startup
+with app.app_context():
+    db.create_all()
+    print('Database tables verified')
 @app.route('/')
 def index():
     products = Product.query.filter_by(is_active=True).all()
