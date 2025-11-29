@@ -15,6 +15,13 @@
             <option value="SOL">Solana</option>
         </select>
         
+        <select class="form-control" name="category_id">
+            <option value="">No Category</option>
+            {% for category in categories %}
+            <option value="{{ category.id }}">{{ category.name }}</option>
+            {% endfor %}
+        </select>
+
         <div class="admin-controls">
             <h4>Rating Controls</h4>
             <div class="control-group">
@@ -51,6 +58,9 @@
                     <p>{{ product.description }}</p>
                     <p><strong>Price:</strong> ${{ "%.2f"|format(product.price_usd) }} USD</p>
                     <p><strong>Crypto:</strong> {{ product.crypto_type }}</p>
+                    {% if product.category %}
+                    <p><strong>Category:</strong> {{ product.category.name }}</p>
+                    {% endif %}
                     <div class="star-rating rating-display">
                         {% for i in range(5) %}
                             <span class="star {% if i < product.admin_rating %}filled{% endif %}">★</span>
@@ -66,7 +76,7 @@
                     <p><strong>Created:</strong> {{ product.created_at.strftime('%Y-%m-%d') }}</p>
                     <p><strong>Orders:</strong> {{ product.orders|length }}</p>
                     <div style="margin-top: 1rem;">
-                        <button onclick="deleteProduct({{ product.id }})" class="delete-btn" 
+                        <button onclick="deleteProduct({{ product.id }})" class="delete-btn">
                             Delete Product
                         </button>
                     </div>
