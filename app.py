@@ -1197,24 +1197,40 @@ def create_first_admin():
         print("📁 No categories found - you can add your own in the admin panel!")
         
 
-if __name__ == '__main__':
-    with app.app_context():
-        print("🔄 INITIALIZING DATABASE...")
-        
-        # Force drop and recreate all tables to ensure schema is correct
-        db.drop_all()
-        db.create_all()
-        print("✅ Database tables force-created with current schema")
-        
-        create_first_admin()
-        
-        os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-        os.makedirs(app.config['PRODUCT_DELIVERY_FOLDER'], exist_ok=True)
-        
-        admin = User.query.filter_by(username='corner').first()
-        if admin:
-            print(f"✅ ADMIN VERIFIED: {admin.username} (Active: {admin.is_active}, Admin: {admin.is_admin})")
+# Database initialization - runs on both local and production
+with app.app_context():
+    print("🔄 INITIALIZING DATABASE...")
     
+    # Force drop and recreate all tables to ensure schema is correct
+    db.drop_all()
+    db.create_all()
+    print("✅ Database tables force-created with current schema")
+    
+    # Create admin user
+    from werkzeug.security import generate_password_hash
+    if not User.query.filter_by(username='corner').first():
+        admin = User(
+            username='corner',
+            password_hash=generate_password_hash('cornerdooradmin4life'),
+            is_admin=True,
+            is_active=True
+        )
+        db.session.add(admin)
+        db.session.commit()
+        print("✅ Admin user created")
+    
+    # Create default category
+    if not Category.query.first():
+        default_cat = Category(name='General', description='Default category')
+        db.session.add(default_cat)
+        db.session.commit()
+        print("✅ Default category created")
+    
+    # Create folders
+    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+    os.makedirs(app.config['PRODUCT_DELIVERY_FOLDER'], exist_ok=True)
+
+if __name__ == '__main__':
     print("")
     print("🚀 CORNER DOOR MARKETPLACE STARTED!")
     print("🔑 ADMIN LOGIN:")
