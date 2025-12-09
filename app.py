@@ -9,6 +9,10 @@ from werkzeug.utils import secure_filename
 import qrcode
 import io
 import base64
+import warnings
+
+# Suppress SQLAlchemy warnings about missing columns
+warnings.filterwarnings('ignore', message="Could not reflect")
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'corner-door-ultimate-fix-2024'
@@ -29,32 +33,59 @@ app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024
 db = SQLAlchemy(app)
 
 # Force create tables in PostgreSQL
-with app.app_context(): db.create_all()
+with app.app_context(): 
+    db.create_all()
 
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 login_manager.login_message_category = 'info'
 
-# Crypto price system
-def get_crypto_prices():
-    """Get crypto prices with fallback to defaults"""
+# ========== CLOUDINARY CONFIGURATION (YOUR CREDENTIALS) ==========
+CLOUDINARY_CONFIG = {
+    'cloud_name': 'dbid7awex',
+    'api_key': '456483999232533',
+    'api_secret': 'v4gx1Xhfxjll0ES_qUdBygOQrXU',
+    'secure': True
+}
+
+def init_cloudinary():
+    """Initialize Cloudinary if available"""
     try:
-        from crypto_prices import price_manager
-        return price_manager.get_prices()
+        import cloudinary
+        import cloudinary.uploader
+        import cloudinary.api
+        
+        cloudinary.config(**CLOUDINARY_CONFIG)
+        print("✅ Cloudinary initialized with your account: dbid7awex")
+        return True
+    except ImportError:
+        print("⚠️ Cloudinary not installed. Images will be saved locally.")
+        return False
+    except Exception as e:
+        print(f"⚠️ Cloudinary error: {e}. Using local storage.")
+        return False
+
+# Initialize Cloudinary
+CLOUDINARY_AVAILABLE = init_cloudinary()
+
+def upload_to_cloudinary(file, folder="products"):
+    """Upload file to Cloudinary if available"""
+    if not CLOUDINARY_AVAILABLE:
+        return None
+    
+    try:
+        import cloudinary.uploader
+        upload_result = cloudinary.uploader.upload(
+            file,
+            folder=f"corner_door/{folder}",
+            resource_type="auto"
+        )
+        return upload_result['secure_url']
     except:
-        return {'BTC': 50000.0, 'ETH': 3000.0, 'SOL': 100.0}
+        return None
 
-def usd_to_crypto(usd_amount, crypto_type):
-    prices = get_crypto_prices()
-    crypto_price = prices.get(crypto_type, 1)
-    return usd_amount / crypto_price
-
-# Make function available to all templates
-@app.context_processor
-def utility_processor():
-    return dict(usd_to_crypto=usd_to_crypto)
-
+# ========== DATABASE MODELS (SAFE VERSION) ==========
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
@@ -94,7 +125,7 @@ class Product(db.Model):
     price_usd = db.Column(db.Float, nullable=False)
     crypto_type = db.Column(db.String(10), nullable=False)
     image_filename = db.Column(db.String(200))
-    # image_url = db.Column(db.String(500))  # COMMENTED OUT - causing database error
+    image_url = db.Column(db.String(500), nullable=True)  # NEW: Optional Cloudinary URL
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     admin_rating = db.Column(db.Integer, default=5)
@@ -118,7 +149,7 @@ class Order(db.Model):
     admin_paid = db.Column(db.Boolean, default=False)
     delivery_location = db.Column(db.Text)
     delivery_file = db.Column(db.String(500))
-    # delivery_file_url = db.Column(db.String(500))  # COMMENTED OUT - causing database error
+    delivery_file_url = db.Column(db.String(500), nullable=True)  # NEW: Optional Cloudinary URL
     delivery_notes = db.Column(db.Text)
     user_rating = db.Column(db.Integer)
     user_review = db.Column(db.Text)
@@ -156,7 +187,6 @@ class CartItem(db.Model):
     
     product = db.relationship('Product', backref='cart_items')
 
-# NEW: Chat Message Model
 class ChatMessage(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
@@ -169,9 +199,27 @@ class ChatMessage(db.Model):
     user = db.relationship('User', backref='chat_messages')
     replies = db.relationship('ChatMessage', backref=db.backref('parent', remote_side=[id]))
 
+# ========== HELPER FUNCTIONS ==========
 @login_manager.user_loader
 def load_user(user_id):
     return db.session.get(User, int(user_id))
+
+def get_crypto_prices():
+    """Get crypto prices with fallback to defaults"""
+    try:
+        from crypto_prices import price_manager
+        return price_manager.get_prices()
+    except:
+        return {'BTC': 50000.0, 'ETH': 3000.0, 'SOL': 100.0}
+
+def usd_to_crypto(usd_amount, crypto_type):
+    prices = get_crypto_prices()
+    crypto_price = prices.get(crypto_type, 1)
+    return usd_amount / crypto_price
+
+@app.context_processor
+def utility_processor():
+    return dict(usd_to_crypto=usd_to_crypto)
 
 def create_notification(user_id, message, order_id=None):
     notification = Notification(
@@ -196,33 +244,133 @@ def allowed_file(filename, delivery=False):
         allowed_extensions = {'png', 'jpg', 'jpeg', 'gif'}
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in allowed_extensions
 
+def get_image_url(product):
+    """Safely get image URL - prefers Cloudinary, falls back to local"""
+    # Try Cloudinary URL first
+    if product.image_url:
+        return product.image_url
+    
+    # Fall back to local file
+    if product.image_filename:
+        return f"/{app.config['UPLOAD_FOLDER']}/{product.image_filename}"
+    
+    return None
 
-# Production configuration
-import os
-if os.environ.get('RENDER'):
-    # Use Render's PostgreSQL database
-    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL').replace('postgres://', 'postgresql://')
-    app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'production-secret-key-change-this')
-else:
-    # Development configuration
-    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///corner_door.db')
-    app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-this')
+def get_delivery_url(order):
+    """Safely get delivery URL - prefers Cloudinary, falls back to local"""
+    # Try Cloudinary URL first
+    if order.delivery_file_url:
+        return order.delivery_file_url
+    
+    # Fall back to local file
+    if order.delivery_file:
+        return order.delivery_file
+    
+    return None
 
+def save_product_image(file):
+    """Save product image - tries Cloudinary first, falls back to local"""
+    if not file or file.filename == '':
+        return None, None
+    
+    if allowed_file(file.filename):
+        # Try Cloudinary first
+        cloudinary_url = upload_to_cloudinary(file, folder="products")
+        if cloudinary_url:
+            return cloudinary_url, None  # Return URL, no filename
+        
+        # Fallback to local storage
+        filename = secure_filename(file.filename)
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file.save(filepath)
+        return None, filename  # Return no URL, but filename
+    
+    return None, None
 
-# Initialize database on startup
+def save_delivery_file(file, order_id):
+    """Save delivery file - tries Cloudinary first, falls back to local"""
+    if not file or file.filename == '':
+        return None, None
+    
+    if allowed_file(file.filename, delivery=True):
+        # Try Cloudinary first
+        cloudinary_url = upload_to_cloudinary(file, folder="deliveries")
+        if cloudinary_url:
+            return cloudinary_url, None  # Return URL, no path
+        
+        # Fallback to local storage
+        filename = secure_filename(file.filename)
+        file_path = os.path.join(app.config['PRODUCT_DELIVERY_FOLDER'], f"order_{order_id}_{filename}")
+        file.save(file_path)
+        return None, file_path  # Return no URL, but file path
+    
+    return None, None
+
+# ========== DATABASE MIGRATION ==========
+def migrate_database_safely():
+    """Add missing columns without breaking existing data"""
+    with app.app_context():
+        try:
+            from sqlalchemy import text
+            
+            # Check and add columns if they don't exist
+            conn = db.engine.connect()
+            
+            # Check for image_url column
+            try:
+                conn.execute(text("""
+                    ALTER TABLE product 
+                    ADD COLUMN IF NOT EXISTS image_url VARCHAR(500)
+                """))
+                print("✅ Verified/Created product.image_url column")
+            except:
+                print("ℹ️ product.image_url column already exists")
+            
+            # Check for delivery_file_url column
+            try:
+                conn.execute(text("""
+                    ALTER TABLE "order"
+                    ADD COLUMN IF NOT EXISTS delivery_file_url VARCHAR(500)
+                """))
+                print("✅ Verified/Created order.delivery_file_url column")
+            except:
+                print("ℹ️ order.delivery_file_url column already exists")
+            
+            conn.close()
+        except Exception as e:
+            print(f"⚠️ Database migration check: {e}")
+
+# ========== INITIALIZATION ==========
 with app.app_context():
+    # First migrate database
+    migrate_database_safely()
+    
+    # Then create all tables
     db.create_all()
-    print('Database tables verified')
+    print('✅ Database tables verified')
     
     # Create folders
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
     os.makedirs(app.config['PRODUCT_DELIVERY_FOLDER'], exist_ok=True)
+    
+    # Create admin user if doesn't exist
+    if not User.query.filter_by(username='corner').first():
+        admin = User(
+            username='corner',
+            password_hash=generate_password_hash('cornerdooradmin4life'),
+            is_admin=True,
+            is_active=True
+        )
+        db.session.add(admin)
+        db.session.commit()
+        print("✅ Admin user created")
 
+# ========== ROUTES ==========
 @app.route('/')
 def index():
     products = Product.query.filter_by(is_active=True).all()
     prices = get_crypto_prices()
-    return render_template('index.html', products=products, crypto_prices=prices)
+    return render_template('index.html', products=products, crypto_prices=prices, get_image_url=get_image_url)
 
 @app.route('/crypto-prices')
 def crypto_prices_api():
@@ -317,25 +465,6 @@ def change_password():
     
     return render_template('change_password.html')
 
-@app.route('/debug-db')
-def debug_db():
-    try:
-        # Try to count products
-        product_count = Product.query.count()
-        user_count = User.query.count()
-        
-        return f"""
-        Products: {product_count}<br>
-        Users: {user_count}<br>
-        Database URL: {app.config['SQLALCHEMY_DATABASE_URI']}<br>
-        Tables exist: ✅
-        """
-    except Exception as e:
-        return f"""
-        Database Error: {str(e)}<br>
-        Tables missing: ❌
-        """
-
 @app.route('/notifications')
 @login_required
 def notifications():
@@ -353,7 +482,6 @@ def notifications():
 def notifications_count():
     return jsonify({'count': current_user.unread_notifications})
 
-# NEW: Chat Routes
 @app.route('/chat', methods=['GET', 'POST'])
 @login_required
 def chat():
@@ -367,7 +495,6 @@ def chat():
             )
             db.session.add(chat_message)
             
-            # Notify admin about new message
             admin_user = User.query.filter_by(is_admin=True, is_active=True).first()
             if admin_user:
                 admin_user.unread_messages = ChatMessage.query.filter_by(is_read=False, is_admin_reply=False).count()
@@ -382,13 +509,11 @@ def chat():
         
         return redirect(url_for('chat'))
     
-    # Get chat messages for this user
     messages = ChatMessage.query.filter(
         (ChatMessage.user_id == current_user.id) | 
         (ChatMessage.is_admin_reply == True)
     ).order_by(ChatMessage.created_at.asc()).all()
     
-    # Mark user's messages as read
     for message in messages:
         if not message.is_read and (message.is_admin_reply or message.user_id == current_user.id):
             message.is_read = True
@@ -412,7 +537,6 @@ def send_chat_message():
     )
     db.session.add(chat_message)
     
-    # Notify admin
     admin_user = User.query.filter_by(is_admin=True, is_active=True).first()
     if admin_user:
         admin_user.unread_messages = ChatMessage.query.filter_by(is_read=False, is_admin_reply=False).count()
@@ -428,7 +552,6 @@ def admin_chat():
         flash('Access denied', 'error')
         return redirect(url_for('index'))
     
-    # Get all users who have sent messages
     user_messages = db.session.query(
         User.id, 
         User.username,
@@ -444,7 +567,6 @@ def admin_chat():
             (ChatMessage.is_admin_reply == True)
         ).order_by(ChatMessage.created_at.asc()).all()
         
-        # Mark messages as read
         for message in messages:
             if not message.is_read:
                 message.is_read = True
@@ -484,7 +606,6 @@ def admin_chat_reply():
     )
     db.session.add(chat_message)
     
-    # Notify user
     user = User.query.get(user_id)
     if user:
         user.unread_messages = ChatMessage.query.filter_by(user_id=user_id, is_read=False, is_admin_reply=True).count()
@@ -506,7 +627,6 @@ def get_chat_messages():
         (ChatMessage.is_admin_reply == True)
     ).order_by(ChatMessage.created_at.asc()).all()
     
-    # Mark as read
     for message in messages:
         if not message.is_read and (message.is_admin_reply or message.user_id == current_user.id):
             message.is_read = True
@@ -532,7 +652,6 @@ def view_cart():
     cart = current_user.get_or_create_cart()
     prices = get_crypto_prices()
     
-    # Calculate totals
     total_usd = 0
     cart_items = []
     
@@ -549,7 +668,6 @@ def view_cart():
             }
         })
     
-    # Calculate crypto totals
     crypto_totals = {}
     for crypto in ['BTC', 'ETH', 'SOL']:
         crypto_totals[crypto] = usd_to_crypto(total_usd, crypto)
@@ -558,7 +676,8 @@ def view_cart():
                          cart_items=cart_items,
                          total_usd=total_usd,
                          crypto_totals=crypto_totals,
-                         crypto_prices=prices)
+                         crypto_prices=prices,
+                         get_image_url=get_image_url)
 
 @app.route('/cart/add/<int:product_id>', methods=['POST'])
 @login_required
@@ -566,7 +685,6 @@ def add_to_cart(product_id):
     product = Product.query.get_or_404(product_id)
     cart = current_user.get_or_create_cart()
     
-    # Check if item already in cart
     cart_item = CartItem.query.filter_by(cart_id=cart.id, product_id=product_id).first()
     
     if cart_item:
@@ -586,7 +704,6 @@ def add_to_cart(product_id):
 def update_cart_item(item_id):
     cart_item = CartItem.query.get_or_404(item_id)
     
-    # Verify ownership
     if cart_item.cart.user_id != current_user.id:
         flash('Access denied', 'error')
         return redirect(url_for('view_cart'))
@@ -609,7 +726,6 @@ def update_cart_item(item_id):
 def clear_cart():
     cart = current_user.get_or_create_cart()
     
-    # Remove all items
     CartItem.query.filter_by(cart_id=cart.id).delete()
     cart.updated_at = datetime.utcnow()
     db.session.commit()
@@ -634,11 +750,9 @@ def checkout_cart():
         flash('No wallet available for selected cryptocurrency', 'error')
         return redirect(url_for('view_cart'))
     
-    # Calculate total
     total_usd = sum(item.product.price_usd * item.quantity for item in cart.items)
     crypto_amount = usd_to_crypto(total_usd, crypto_type)
     
-    # Create individual orders for each cart item
     orders = []
     for item in cart.items:
         order = Order(
@@ -652,12 +766,10 @@ def checkout_cart():
         db.session.add(order)
         orders.append(order)
     
-    # Clear cart after checkout
     CartItem.query.filter_by(cart_id=cart.id).delete()
     cart.updated_at = datetime.utcnow()
     db.session.commit()
     
-    # Create detailed payment notification
     payment_message = f"""
 🎯 ORDER CONFIRMED - READY FOR PAYMENT
 
@@ -679,7 +791,6 @@ def checkout_cart():
 Click this notification to view order details with QR code.
 """
     
-    # Create notifications
     admin_user = User.query.filter_by(is_admin=True, is_active=True).first()
     if admin_user:
         create_notification(
@@ -706,7 +817,7 @@ def product_detail(product_id):
     for crypto in ['BTC', 'ETH', 'SOL']:
         crypto_amounts[crypto] = usd_to_crypto(product.price_usd, crypto)
     
-    return render_template('product.html', product=product, crypto_amounts=crypto_amounts, crypto_prices=prices)
+    return render_template('product.html', product=product, crypto_amounts=crypto_amounts, crypto_prices=prices, get_image_url=get_image_url)
 
 @app.route('/buy/<int:product_id>', methods=['GET', 'POST'])
 @login_required
@@ -737,7 +848,6 @@ def buy_product(product_id):
         db.session.add(order)
         db.session.commit()
         
-        # Create detailed payment notification
         payment_message = f"""
 🎯 ORDER CONFIRMED - READY FOR PAYMENT
 
@@ -780,7 +890,7 @@ Click this notification to view order details with QR code.
     for crypto in ['BTC', 'ETH', 'SOL']:
         crypto_amounts[crypto] = usd_to_crypto(product.price_usd, crypto)
     
-    return render_template('buy.html', product=product, crypto_amounts=crypto_amounts, crypto_prices=prices)
+    return render_template('buy.html', product=product, crypto_amounts=crypto_amounts, crypto_prices=prices, get_image_url=get_image_url)
 
 @app.route('/order/<int:order_id>')
 @login_required
@@ -790,7 +900,6 @@ def order_details(order_id):
         flash('Access denied', 'error')
         return redirect(url_for('index'))
     
-    # Generate QR code for payment
     qr = qrcode.QRCode(version=1, box_size=10, border=5)
     qr_data = f"{order.crypto_type}:{order.wallet_address}?amount={order.crypto_amount}"
     qr.add_data(qr_data)
@@ -801,7 +910,7 @@ def order_details(order_id):
     img.save(buffer, format='PNG')
     qr_code = base64.b64encode(buffer.getvalue()).decode()
     
-    return render_template('order.html', order=order, qr_code=qr_code)
+    return render_template('order.html', order=order, qr_code=qr_code, get_delivery_url=get_delivery_url)
 
 @app.route('/order/<int:order_id>/paid', methods=['POST'])
 @login_required
@@ -864,13 +973,18 @@ def download_delivery(order_id):
         flash('Access denied', 'error')
         return redirect(url_for('index'))
     
-    if not order.delivery_file:
+    delivery_url = get_delivery_url(order)
+    if not delivery_url:
         flash('No delivery file available', 'error')
         return redirect(url_for('order_details', order_id=order_id))
     
     try:
-        # FIX: Normalize the path
-        file_path = order.delivery_file.replace('\\', '/')
+        # If it's a Cloudinary URL (starts with http), redirect to it
+        if delivery_url.startswith('http'):
+            return redirect(delivery_url)
+        
+        # Otherwise, handle local file
+        file_path = delivery_url.replace('\\', '/')
         
         if os.path.exists(file_path):
             return send_file(file_path, as_attachment=True)
@@ -931,9 +1045,15 @@ def admin_products():
         if 'image' in request.files:
             file = request.files['image']
             if file and allowed_file(file.filename):
-                filename = secure_filename(file.filename)
-                file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-                product.image_filename = filename
+                # ENHANCED: Try Cloudinary first, fallback to local
+                cloudinary_url, filename = save_product_image(file)
+                
+                if cloudinary_url:
+                    product.image_url = cloudinary_url
+                    flash('✅ Product image uploaded to Cloudinary! (Will persist forever)', 'success')
+                elif filename:
+                    product.image_filename = filename
+                    flash('ℹ️ Product image saved locally', 'info')
         
         db.session.add(product)
         db.session.commit()
@@ -942,9 +1062,8 @@ def admin_products():
     
     products = Product.query.all()
     categories = Category.query.filter_by(is_active=True).all()
-    return render_template('admin/products.html', products=products, categories=categories)
+    return render_template('admin/products.html', products=products, categories=categories, get_image_url=get_image_url)
 
-# UPDATED: Product deletion now allows deletion even with orders
 @app.route('/admin/delete_product/<int:product_id>', methods=['POST'])
 @login_required
 def admin_delete_product(product_id):
@@ -952,48 +1071,27 @@ def admin_delete_product(product_id):
         return jsonify({'error': 'Access denied'}), 403
     
     try:
-        # Get the product first to know what we're deleting
         product = Product.query.get_or_404(product_id)
         product_title = product.title
         
-        print(f"🔄 Starting deletion of product: {product_title} (ID: {product_id})")
-        
-        # POSTGRESQL-COMPATIBLE DELETION - THIS WILL WORK!
-        
-        # Step 1: Delete notifications for orders of this product
+        # PostgreSQL-compatible deletion
         orders = Order.query.filter_by(product_id=product_id).all()
         if orders:
             order_ids = [order.id for order in orders]
-            print(f"📋 Found {len(order_ids)} orders to clean up")
-            
-            # Delete notifications for these orders
-            notifications_deleted = Notification.query.filter(Notification.order_id.in_(order_ids)).delete(synchronize_session=False)
-            print(f"🗑️  Deleted {notifications_deleted} notifications")
+            Notification.query.filter(Notification.order_id.in_(order_ids)).delete(synchronize_session=False)
         
-        # Step 2: Delete the orders for this product
-        orders_deleted = Order.query.filter_by(product_id=product_id).delete(synchronize_session=False)
-        print(f"🗑️  Deleted {orders_deleted} orders")
-        
-        # Step 3: Delete cart items for this product
-        cart_items_deleted = CartItem.query.filter_by(product_id=product_id).delete(synchronize_session=False)
-        print(f"🗑️  Deleted {cart_items_deleted} cart items")
-        
-        # Step 4: Finally delete the product itself
+        Order.query.filter_by(product_id=product_id).delete(synchronize_session=False)
+        CartItem.query.filter_by(product_id=product_id).delete(synchronize_session=False)
         db.session.delete(product)
-        
-        # Commit all changes
         db.session.commit()
-        
-        print(f"✅ SUCCESS: Product '{product_title}' completely deleted!")
         
         return jsonify({
             'success': True, 
-            'message': f'Product "{product_title}" deleted successfully! Removed: {orders_deleted} orders, {cart_items_deleted} cart items'
+            'message': f'Product "{product_title}" deleted successfully!'
         })
         
     except Exception as e:
         db.session.rollback()
-        print(f"❌ DELETE FAILED: {str(e)}")
         return jsonify({'error': f'Delete failed: {str(e)}'}), 500
 
 @app.route('/admin/wallets', methods=['GET', 'POST'])
@@ -1061,14 +1159,16 @@ def admin_deliver_order(order_id):
         if 'delivery_file' in request.files:
             file = request.files['delivery_file']
             if file and file.filename != '':
-                # Only allow specific delivery file types
                 if allowed_file(file.filename, delivery=True):
-                    filename = secure_filename(file.filename)
-                    # Save to deliveries folder with order ID
-                    file_path = os.path.join(app.config['PRODUCT_DELIVERY_FOLDER'], f"order_{order_id}_{filename}")
-                    file.save(file_path)
-                    order.delivery_file = file_path
-                    print(f"✅ Saved delivery file: {file_path}")
+                    # ENHANCED: Try Cloudinary first, fallback to local
+                    cloudinary_url, file_path = save_delivery_file(file, order_id)
+                    
+                    if cloudinary_url:
+                        order.delivery_file_url = cloudinary_url
+                        flash('✅ Delivery file uploaded to Cloudinary! (Will persist forever)', 'success')
+                    elif file_path:
+                        order.delivery_file = file_path
+                        flash('ℹ️ Delivery file saved locally', 'info')
                 else:
                     flash('Invalid file type for delivery', 'error')
                     return redirect(url_for('admin_deliver_order', order_id=order_id))
@@ -1079,7 +1179,7 @@ def admin_deliver_order(order_id):
         
         create_notification(
             order.user_id,
-            f'🎉 ORDER #{order.id} DELIVERED!\n\nYour product "{order.product.title}" is ready for download.\n\n📥 Click "Download Product" to get your files.\n⭐ Don\'t forget to rate your purchase!',
+            f'🎉 ORDER #{order.id} DELIVERED!\n\nYour product "{order.product.title}" is ready for download.\n\n📥 Click the download link to get your files.\n⭐ Don\'t forget to rate your purchase!',
             order.id
         )
         
@@ -1147,16 +1247,14 @@ def admin_change_user_password(user_id):
     db.session.commit()
     
     return jsonify({'success': True})
-# NEW: Search functionality
+
 @app.route('/search')
 def search():
     query = request.args.get('q', '')
     category_id = request.args.get('category', '')
     
-    # Start with all active products
     products_query = Product.query.filter_by(is_active=True)
     
-    # Apply search filter
     if query:
         products_query = products_query.filter(
             db.or_(
@@ -1165,7 +1263,6 @@ def search():
             )
         )
     
-    # Apply category filter
     if category_id:
         products_query = products_query.filter_by(category_id=category_id)
     
@@ -1176,16 +1273,15 @@ def search():
                          products=products, 
                          categories=categories,
                          search_query=query,
-                         selected_category=category_id)
+                         selected_category=category_id,
+                         get_image_url=get_image_url)
 
 @app.route('/setup-database')
 def setup_database():
     """One-time database setup route"""
     try:
-        # Create all tables
         db.create_all()
         
-        # Create admin user if doesn't exist
         if not User.query.filter_by(username='corner').first():
             admin = User(
                 username='corner',
@@ -1202,7 +1298,6 @@ def setup_database():
     except Exception as e:
         return f"❌ Setup failed: {str(e)}"
 
-# NEW: Category management routes
 @app.route('/admin/categories', methods=['GET', 'POST'])
 @login_required
 def admin_categories():
@@ -1236,10 +1331,8 @@ def admin_delete_category(category_id):
     try:
         category = Category.query.get_or_404(category_id)
         
-        # Remove category from products (set to NULL)
         Product.query.filter_by(category_id=category_id).update({'category_id': None})
         
-        # Delete the category
         db.session.delete(category)
         db.session.commit()
         
@@ -1249,62 +1342,20 @@ def admin_delete_category(category_id):
         db.session.rollback()
         return jsonify({'error': f'Failed to delete category: {str(e)}'}), 500
 
-def create_first_admin():
-    # Create admin user if doesn't exist
-    if not User.query.filter_by(username='corner').first():
-        admin = User(
-            username='corner',
-            password_hash=generate_password_hash('cornerdooradmin4life'),
-            is_admin=True,
-            is_active=True,
-            recovery_phrase='primary admin account'
-        )
-        db.session.add(admin)
-        db.session.commit()
-        print("🎉 PRIMARY ADMIN CREATED: username='corner', password='cornerdooradmin4life'")
-    
-    # NO DEFAULT CATEGORIES - completely empty start
-    if Category.query.count() == 0:
-        print("📁 No categories found - you can add your own in the admin panel!")
-
-# Database initialization - runs on both local and production
-with app.app_context():
-    print("🔄 INITIALIZING DATABASE...")
-    
-    # Force drop and recreate all tables to ensure schema is correct
-    db.create_all()
-    print("✅ Database tables force-created with current schema")
-    
-    # Create admin user
-    from werkzeug.security import generate_password_hash
-    if not User.query.filter_by(username='corner').first():
-        admin = User(
-            username='corner',
-            password_hash=generate_password_hash('cornerdooradmin4life'),
-            is_admin=True,
-            is_active=True
-        )
-        db.session.add(admin)
-        db.session.commit()
-        print("✅ Admin user created")
-    
-    # Create default category
-    if not Category.query.first():
-        default_cat = Category(name='General', description='Default category')
-        db.session.add(default_cat)
-        db.session.commit()
-        print("✅ Default category created")
-    
-    # Create folders
-    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-    os.makedirs(app.config['PRODUCT_DELIVERY_FOLDER'], exist_ok=True)
-
 if __name__ == '__main__':
     print("")
     print("🚀 CORNER DOOR MARKETPLACE STARTED!")
     print("🔑 ADMIN LOGIN:")
     print("   Username: corner")
     print("   Password: cornerdooradmin4life")
+    
+    if CLOUDINARY_AVAILABLE:
+        print("☁️  CLOUDINARY: Enabled with your account (dbid7awex)")
+        print("✅ Images will persist forever!")
+    else:
+        print("⚠️  CLOUDINARY: Not available. Install: pip install cloudinary")
+        print("⚠️  Images will be saved locally (may disappear on restart)")
+    
     print("🌐 ACCESS AT: http://localhost:5000")
     print("")
     
