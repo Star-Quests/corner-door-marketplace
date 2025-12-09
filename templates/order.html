@@ -13,14 +13,16 @@
             {% if order.admin_paid %}
                 <span style="color: #00ff88;">✅ Completed & Delivered</span>
                 {% if order.delivery_file or order.delivery_file_url %}
-• <a href="{{ url_for('download_delivery', order_id=order.id) }}" class="download-btn" style="background-color: #00ff88; color: black; padding: 0.5rem 1rem; border-radius: 4px; font-weight: bold; text-decoration: none;">⬇️ DOWNLOAD PRODUCT (CLICK HERE)</a>
+• <a href="{{ url_for('download_delivery', order_id=order.id) }}" 
+   class="download-btn" 
+   style="background-color: #00ff88; color: black; padding: 0.5rem 1rem; border-radius: 4px; font-weight: bold; text-decoration: none; margin-left: 1rem;"
+   onclick="return confirm('The PDF will open in a new tab. Right-click and select Save As to download.')">
+   ⬇️ DOWNLOAD PRODUCT (CLICK HERE)
+</a>
+<small style="display: block; color: #aaa; margin-top: 0.25rem;">
+    If PDF opens in browser, right-click → Save As
+</small>
 {% endif %}
-            {% elif order.user_paid %}
-                <span style="color: #ffaa00;">⏳ Pending Verification</span>
-                <br><small>Admin is verifying your payment...</small>
-            {% else %}
-                <span style="color: #ff4444;">💰 Awaiting Payment</span>
-            {% endif %}
         </p>
         
         {% if not order.user_paid %}

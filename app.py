@@ -1028,7 +1028,11 @@ def download_delivery(order_id):
         # If it's a Cloudinary URL (starts with http), redirect to it
         if delivery_url and delivery_url.startswith('http'):
             print(f"DEBUG: Redirecting to Cloudinary URL")
-            return redirect(delivery_url)
+            # Add download parameter to force download
+            if '.pdf' in delivery_url.lower() or '.zip' in delivery_url.lower():
+                return redirect(delivery_url + '?dl=1')
+            else:
+                return redirect(delivery_url)
         
         # If it's a local file path
         if delivery_url and os.path.exists(delivery_url):
