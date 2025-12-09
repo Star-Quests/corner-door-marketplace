@@ -1116,6 +1116,26 @@ def admin_products():
     categories = Category.query.filter_by(is_active=True).all()
     return render_template('admin/products.html', products=products, categories=categories, get_image_url=get_image_url)
 
+@app.route('/debug-order/<int:order_id>')
+@login_required
+def debug_order(order_id):
+    order = Order.query.get_or_404(order_id)
+    
+    return f"""
+    <h3>Order #{order.id} Debug</h3>
+    <p>Product: {order.product.title}</p>
+    <hr>
+    <p><strong>admin_paid:</strong> {order.admin_paid}</p>
+    <p><strong>user_paid:</strong> {order.user_paid}</p>
+    <hr>
+    <p><strong>delivery_file (local):</strong> {order.delivery_file or 'NOT SET'}</p>
+    <p><strong>delivery_file_url (Cloudinary):</strong> {order.delivery_file_url or 'NOT SET'}</p>
+    <hr>
+    <p><strong>get_delivery_url() returns:</strong> {get_delivery_url(order)}</p>
+    <hr>
+    <a href="/order/{order.id}">Back to order page</a>
+    """
+
 @app.context_processor
 def utility_processor():
     return dict(
