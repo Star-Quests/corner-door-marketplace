@@ -257,15 +257,34 @@ def get_image_url(product):
     return None
 
 def get_delivery_url(order):
-    """Safely get delivery URL - prefers Cloudinary, falls back to local"""
+    """Get delivery file URL - FIXED VERSION"""
+    print(f"DEBUG get_delivery_url for order #{order.id}:")
+    print(f"  delivery_file_url: {order.delivery_file_url}")
+    print(f"  delivery_file: {order.delivery_file}")
+    
     # Try Cloudinary URL first
     if order.delivery_file_url:
-        return order.delivery_file_url
+        # Make sure URL has https://
+        url = str(order.delivery_file_url)
+        if url.startswith('http'):
+            print(f"  Returning Cloudinary URL: {url}")
+            return url
+        elif url.startswith('//'):
+            url = 'https:' + url
+            print(f"  Fixed protocol, returning: {url}")
+            return url
+        else:
+            print(f"  Returning as-is: {url}")
+            return url
     
     # Fall back to local file
     if order.delivery_file:
-        return order.delivery_file
+        # Make sure it's a proper path
+        file_path = str(order.delivery_file)
+        print(f"  Returning local file: {file_path}")
+        return file_path
     
+    print("  No delivery file available")
     return None
 
 def save_product_image(file):
@@ -1004,23 +1023,31 @@ def download_delivery(order_id):
         return redirect(url_for('order_details', order_id=order_id))
     
     try:
+        print(f"DEBUG download_delivery: Got URL: {delivery_url}")
+        
         # If it's a Cloudinary URL (starts with http), redirect to it
-        if delivery_url.startswith('http'):
+        if delivery_url and delivery_url.startswith('http'):
+            print(f"DEBUG: Redirecting to Cloudinary URL")
             return redirect(delivery_url)
         
-        # Otherwise, handle local file
-        file_path = delivery_url.replace('\\', '/')
+        # If it's a local file path
+        if delivery_url and os.path.exists(delivery_url):
+            print(f"DEBUG: Sending local file: {delivery_url}")
+            return send_file(delivery_url, as_attachment=True)
+        elif delivery_url:
+            # Try with static folder path
+            static_path = delivery_url.replace('\\', '/')
+            if os.path.exists(static_path):
+                print(f"DEBUG: Sending static file: {static_path}")
+                return send_file(static_path, as_attachment=True)
         
-        if os.path.exists(file_path):
-            return send_file(file_path, as_attachment=True)
-        else:
-            flash('Delivery file not found. Please contact admin.', 'error')
-            return redirect(url_for('order_details', order_id=order_id))
+        flash('Delivery file not found. Please contact admin.', 'error')
+        return redirect(url_for('order_details', order_id=order_id))
             
     except Exception as e:
+        print(f"DEBUG download error: {str(e)}")
         flash(f'Error downloading file: {str(e)}', 'error')
         return redirect(url_for('order_details', order_id=order_id))
-
 # Admin routes
 @app.route('/admin')
 @login_required
