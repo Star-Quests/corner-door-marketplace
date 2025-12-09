@@ -9,3 +9,4 @@ python-dotenv==1.0.0
 qrcode[pil]==7.4.2
 Pillow==10.0.1
 cryptography==41.0.7
+cloudinary==1.38.0 
