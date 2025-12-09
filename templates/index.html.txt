@@ -7,14 +7,14 @@
 <div class="products-grid">
     {% for product in products %}
     <div class="product-card">
-        {% if product.image_filename %}
-        <img src="{{ url_for('static', filename='uploads/' + product.image_filename) }}" 
-             alt="{{ product.title }}" class="product-image">
-        {% else %}
-        <div class="product-image" style="background-color: #333; display: flex; align-items: center; justify-content: center;">
-            No Image
-        </div>
-        {% endif %}
+        {% set img_url = get_image_url(product) %}
+{% if img_url %}
+<img src="{{ img_url }}" alt="{{ product.title }}" class="product-image">
+{% else %}
+<div class="product-image" style="background-color: #333; display: flex; align-items: center; justify-content: center;">
+    No Image
+</div>
+{% endif %}
         
         <h3 class="product-title">{{ product.title }}</h3>
         
