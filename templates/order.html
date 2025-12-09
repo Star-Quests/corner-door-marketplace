@@ -13,8 +13,8 @@
             {% if order.admin_paid %}
                 <span style="color: #00ff88;">✅ Completed & Delivered</span>
                 {% if order.delivery_file %}
-                • <a href="{{ url_for('download_delivery', order_id=order.id) }}" class="download-btn">📥 Download Product</a>
-                {% endif %}
+• <a href="{{ url_for('download_delivery', order_id=order.id) }}" class="download-btn">📥 Download Product</a>
+{% endif %}
             {% elif order.user_paid %}
                 <span style="color: #ffaa00;">⏳ Pending Verification</span>
                 <br><small>Admin is verifying your payment...</small>

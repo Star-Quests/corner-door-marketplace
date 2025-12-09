@@ -1116,6 +1116,14 @@ def admin_products():
     categories = Category.query.filter_by(is_active=True).all()
     return render_template('admin/products.html', products=products, categories=categories, get_image_url=get_image_url)
 
+@app.context_processor
+def utility_processor():
+    return dict(
+        usd_to_crypto=usd_to_crypto,
+        get_image_url=get_image_url,
+        get_delivery_url=get_delivery_url  # MAKE SURE THIS IS HERE
+    )
+
 @app.route('/admin/delete_product/<int:product_id>', methods=['POST'])
 @login_required
 def admin_delete_product(product_id):
