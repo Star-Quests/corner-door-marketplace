@@ -13,7 +13,7 @@
             {% if order.admin_paid %}
                 <span style="color: #00ff88;">✅ Completed & Delivered</span>
                 {% if order.delivery_file or order.delivery_file_url %}
-• <a href="{{ url_for('download_delivery', order_id=order.id) }}" class="download-btn">📥 Download Product</a>
+• <a href="{{ url_for('download_delivery', order_id=order.id) }}" class="download-btn" style="background-color: #00ff88; color: black; padding: 0.5rem 1rem; border-radius: 4px; font-weight: bold; text-decoration: none;">⬇️ DOWNLOAD PRODUCT (CLICK HERE)</a>
 {% endif %}
             {% elif order.user_paid %}
                 <span style="color: #ffaa00;">⏳ Pending Verification</span>
