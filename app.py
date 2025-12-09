@@ -1366,6 +1366,20 @@ def admin_delete_category(category_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': f'Failed to delete category: {str(e)}'}), 500
+    
+@app.route('/check-product/<int:product_id>')
+def check_product(product_id):
+    product = Product.query.get_or_404(product_id)
+    
+    return f"""
+    <h3>Product: {product.title}</h3>
+    <p>Image URL: {product.image_url}</p>
+    <p>Image Filename: {product.image_filename}</p>
+    <hr>
+    <p>If you see a Cloudinary URL above, the image should work.</p>
+    <p>If not, the image wasn't saved correctly.</p>
+    <a href="/admin/products">Back to products</a>
+    """
 
 # ========== EMERGENCY DATABASE FIX ==========
 @app.route('/fix-database-now')
