@@ -1342,6 +1342,51 @@ def admin_delete_category(category_id):
         db.session.rollback()
         return jsonify({'error': f'Failed to delete category: {str(e)}'}), 500
 
+# ========== EMERGENCY DATABASE FIX ==========
+@app.route('/fix-database-now')
+def fix_database_now():
+    """ONE-TIME emergency database fix - run this once then remove"""
+    try:
+        from sqlalchemy import text
+        
+        with app.app_context():
+            conn = db.engine.connect()
+            
+            # Add missing columns
+            conn.execute(text("""
+                ALTER TABLE product 
+                ADD COLUMN IF NOT EXISTS image_url VARCHAR(500)
+            """))
+            
+            conn.execute(text("""
+                ALTER TABLE "order"
+                ADD COLUMN IF NOT EXISTS delivery_file_url VARCHAR(500)
+            """))
+            
+            conn.commit()
+            conn.close()
+        
+        return """
+        ✅ DATABASE FIXED!
+        
+        Columns added:
+        1. product.image_url
+        2. order.delivery_file_url
+        
+        Your site should now work perfectly.
+        
+        <a href="/">Go to homepage</a>
+        """
+    except Exception as e:
+        return f"""
+        ❌ FIX FAILED: {str(e)}
+        
+        Please go to Render Dashboard → Shell and run:
+        
+        psql $DATABASE_URL -c "ALTER TABLE product ADD COLUMN IF NOT EXISTS image_url VARCHAR(500);"
+        psql $DATABASE_URL -c "ALTER TABLE \\"order\\" ADD COLUMN IF NOT EXISTS delivery_file_url VARCHAR(500);"
+        """
+
 if __name__ == '__main__':
     print("")
     print("🚀 CORNER DOOR MARKETPLACE STARTED!")
