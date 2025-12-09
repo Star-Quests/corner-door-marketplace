@@ -1366,7 +1366,28 @@ def admin_delete_category(category_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': f'Failed to delete category: {str(e)}'}), 500
+
+@app.route('/fix-images')
+def fix_images():
+    """Check all products and show their image info"""
+    products = Product.query.all()
     
+    html = "<h1>Product Image Status</h1>"
+    
+    for product in products:
+        html += f"""
+        <div style="border: 1px solid #ccc; padding: 10px; margin: 10px;">
+            <h3>Product #{product.id}: {product.title}</h3>
+            <p>Price: ${product.price_usd}</p>
+            <p><strong>Cloudinary URL:</strong> {product.image_url or 'NOT SET'}</p>
+            <p><strong>Local Filename:</strong> {product.image_filename or 'NOT SET'}</p>
+            <p><strong>Current get_image_url() returns:</strong> {get_image_url(product)}</p>
+        </div>
+        """
+    
+    html += "<p>If Cloudinary URL is blank, the image wasn't uploaded to Cloudinary.</p>"
+    return html
+
 @app.route('/check-product/<int:product_id>')
 def check_product(product_id):
     product = Product.query.get_or_404(product_id)
