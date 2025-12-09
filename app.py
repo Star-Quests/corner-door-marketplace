@@ -13,27 +13,6 @@ import base64
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'corner-door-ultimate-fix-2024'
 
-# Add this NEW function after the imports (around line 30):
-def safe_database_check():
-    """Safe check for database without breaking"""
-    with app.app_context():
-        try:
-            from sqlalchemy import inspect, text
-            inspector = inspect(db.engine)
-            
-            # Check for product table columns
-            product_columns = [col['name'] for col in inspector.get_columns('product')]
-            if 'image_url' not in product_columns:
-                print("⚠️ product.image_url column missing - will use local files")
-            
-            # Check for order table columns  
-            order_columns = [col['name'] for col in inspector.get_columns('order')]
-            if 'delivery_file_url' not in order_columns:
-                print("⚠️ order.delivery_file_url column missing - will use local files")
-                
-        except Exception as e:
-            print(f"ℹ️ Database check: {e}")
-
 # PostgreSQL Configuration
 if os.environ.get('DATABASE_URL'):
     # Production - use PostgreSQL
@@ -115,7 +94,7 @@ class Product(db.Model):
     price_usd = db.Column(db.Float, nullable=False)
     crypto_type = db.Column(db.String(10), nullable=False)
     image_filename = db.Column(db.String(200))
-    image_url = db.Column(db.String(500))  # NEW: Cloudinary URL field
+    # image_url = db.Column(db.String(500))  # COMMENTED OUT - causing database error
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     admin_rating = db.Column(db.Integer, default=5)
@@ -139,7 +118,7 @@ class Order(db.Model):
     admin_paid = db.Column(db.Boolean, default=False)
     delivery_location = db.Column(db.Text)
     delivery_file = db.Column(db.String(500))
-    delivery_file_url = db.Column(db.String(500))  # NEW: Cloudinary URL field
+    # delivery_file_url = db.Column(db.String(500))  # COMMENTED OUT - causing database error
     delivery_notes = db.Column(db.Text)
     user_rating = db.Column(db.Integer)
     user_review = db.Column(db.Text)
@@ -217,122 +196,8 @@ def allowed_file(filename, delivery=False):
         allowed_extensions = {'png', 'jpg', 'jpeg', 'gif'}
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in allowed_extensions
 
-# ========== CLOUDINARY INTEGRATION ==========
-# YOUR CLOUDINARY CREDENTIALS
-CLOUDINARY_CONFIG = {
-    'cloud_name': 'dbid7awex',
-    'api_key': '456483999232533',
-    'api_secret': 'v4gx1Xhfxjll0ES_qUdBygOQrXU',
-    'secure': True
-}
 
-def init_cloudinary():
-    """Initialize Cloudinary with YOUR credentials"""
-    try:
-        import cloudinary
-        import cloudinary.uploader
-        import cloudinary.api
-        
-        # Configure with YOUR credentials
-        cloudinary.config(**CLOUDINARY_CONFIG)
-        return cloudinary
-    except ImportError:
-        print("⚠️ Cloudinary not installed. Run: pip install cloudinary")
-        return None
-    except Exception as e:
-        print(f"⚠️ Cloudinary config error: {e}")
-        return None
-
-def upload_to_cloudinary(file, folder="products"):
-    """Upload file to Cloudinary and return secure URL"""
-    cloudinary = init_cloudinary()
-    if not cloudinary:
-        return None
-    
-    try:
-        upload_result = cloudinary.uploader.upload(
-            file,
-            folder=f"corner_door/{folder}",
-            resource_type="auto"
-        )
-        print(f"✅ Uploaded to Cloudinary: {upload_result['secure_url']}")
-        return upload_result['secure_url']
-    except Exception as e:
-        print(f"❌ Cloudinary upload error: {e}")
-        return None
-
-def get_image_url(product):
-    """Get image URL - SAFE version for missing columns"""
-    # First check if image_url exists AND has a value
-    try:
-        if hasattr(product, 'image_url') and product.image_url:
-            return product.image_url
-    except:
-        pass
-    
-    # Fall back to old image_filename
-    if product.image_filename:
-        return f"/{app.config['UPLOAD_FOLDER']}/{product.image_filename}"
-    
-    return None
-
-def get_delivery_url(order):
-    """Get delivery URL - SAFE version for missing columns"""
-    # First check if delivery_file_url exists AND has a value
-    try:
-        if hasattr(order, 'delivery_file_url') and order.delivery_file_url:
-            return order.delivery_file_url
-    except:
-        pass
-    
-    # Fall back to old delivery_file
-    if order.delivery_file:
-        return order.delivery_file
-    
-    return None
-
-# ========== ENHANCED FILE HANDLING ==========
-def save_product_image(file):
-    """Save product image - tries Cloudinary first, falls back to local"""
-    if not file or file.filename == '':
-        return None
-    
-    if allowed_file(file.filename):
-        # Try Cloudinary first
-        cloudinary_url = upload_to_cloudinary(file, folder="products")
-        if cloudinary_url:
-            return {'url': cloudinary_url, 'type': 'cloudinary'}
-        
-        # Fallback to local storage
-        filename = secure_filename(file.filename)
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        file.save(filepath)
-        print(f"⚠️ Saved locally (will disappear on restart): {filename}")
-        return {'filename': filename, 'type': 'local'}
-    
-    return None
-
-def save_delivery_file(file, order_id):
-    """Save delivery file - tries Cloudinary first, falls back to local"""
-    if not file or file.filename == '':
-        return None
-    
-    if allowed_file(file.filename, delivery=True):
-        # Try Cloudinary first
-        cloudinary_url = upload_to_cloudinary(file, folder="deliveries")
-        if cloudinary_url:
-            return {'url': cloudinary_url, 'type': 'cloudinary'}
-        
-        # Fallback to local storage
-        filename = secure_filename(file.filename)
-        file_path = os.path.join(app.config['PRODUCT_DELIVERY_FOLDER'], f"order_{order_id}_{filename}")
-        file.save(file_path)
-        print(f"⚠️ Saved locally (will disappear on restart): {filename}")
-        return {'path': file_path, 'type': 'local'}
-    
-    return None
-
-# ========== PRODUCTION CONFIGURATION ==========
+# Production configuration
 import os
 if os.environ.get('RENDER'):
     # Use Render's PostgreSQL database
@@ -343,24 +208,21 @@ else:
     app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///corner_door.db')
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-this')
 
+
 # Initialize database on startup
 with app.app_context():
     db.create_all()
     print('Database tables verified')
     
-    # Initialize Cloudinary with YOUR credentials
-    if init_cloudinary():
-        print("✅ Cloudinary configured with YOUR account: dbid7awex")
-        print("✅ Images will now persist permanently!")
-    else:
-        print("⚠️ Cloudinary not configured - images may disappear after restart")
-        print("⚠️ Run: pip install cloudinary")
+    # Create folders
+    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+    os.makedirs(app.config['PRODUCT_DELIVERY_FOLDER'], exist_ok=True)
 
 @app.route('/')
 def index():
     products = Product.query.filter_by(is_active=True).all()
     prices = get_crypto_prices()
-    return render_template('index.html', products=products, crypto_prices=prices, get_image_url=get_image_url)
+    return render_template('index.html', products=products, crypto_prices=prices)
 
 @app.route('/crypto-prices')
 def crypto_prices_api():
@@ -658,7 +520,7 @@ def get_chat_messages():
             'id': msg.id,
             'message': msg.message,
             'is_admin_reply': msg.is_admin_reply,
-            'created_at': msg.created_at.strftime('%Y-%m-d %H:%M'),
+            'created_at': msg.created_at.strftime('%Y-%m-%d %H:%M'),
             'username': msg.user.username if not msg.is_admin_reply else 'Admin'
         })
     
@@ -696,8 +558,7 @@ def view_cart():
                          cart_items=cart_items,
                          total_usd=total_usd,
                          crypto_totals=crypto_totals,
-                         crypto_prices=prices,
-                         get_image_url=get_image_url)
+                         crypto_prices=prices)
 
 @app.route('/cart/add/<int:product_id>', methods=['POST'])
 @login_required
@@ -845,7 +706,7 @@ def product_detail(product_id):
     for crypto in ['BTC', 'ETH', 'SOL']:
         crypto_amounts[crypto] = usd_to_crypto(product.price_usd, crypto)
     
-    return render_template('product.html', product=product, crypto_amounts=crypto_amounts, crypto_prices=prices, get_image_url=get_image_url)
+    return render_template('product.html', product=product, crypto_amounts=crypto_amounts, crypto_prices=prices)
 
 @app.route('/buy/<int:product_id>', methods=['GET', 'POST'])
 @login_required
@@ -919,7 +780,7 @@ Click this notification to view order details with QR code.
     for crypto in ['BTC', 'ETH', 'SOL']:
         crypto_amounts[crypto] = usd_to_crypto(product.price_usd, crypto)
     
-    return render_template('buy.html', product=product, crypto_amounts=crypto_amounts, crypto_prices=prices, get_image_url=get_image_url)
+    return render_template('buy.html', product=product, crypto_amounts=crypto_amounts, crypto_prices=prices)
 
 @app.route('/order/<int:order_id>')
 @login_required
@@ -940,7 +801,7 @@ def order_details(order_id):
     img.save(buffer, format='PNG')
     qr_code = base64.b64encode(buffer.getvalue()).decode()
     
-    return render_template('order.html', order=order, qr_code=qr_code, get_delivery_url=get_delivery_url)
+    return render_template('order.html', order=order, qr_code=qr_code)
 
 @app.route('/order/<int:order_id>/paid', methods=['POST'])
 @login_required
@@ -1003,18 +864,13 @@ def download_delivery(order_id):
         flash('Access denied', 'error')
         return redirect(url_for('index'))
     
-    delivery_url = get_delivery_url(order)
-    if not delivery_url:
+    if not order.delivery_file:
         flash('No delivery file available', 'error')
         return redirect(url_for('order_details', order_id=order_id))
     
     try:
-        # If it's a Cloudinary URL, redirect to it
-        if delivery_url.startswith('http'):
-            return redirect(delivery_url)
-        
-        # Otherwise, handle local file
-        file_path = delivery_url.replace('\\', '/')
+        # FIX: Normalize the path
+        file_path = order.delivery_file.replace('\\', '/')
         
         if os.path.exists(file_path):
             return send_file(file_path, as_attachment=True)
@@ -1075,15 +931,9 @@ def admin_products():
         if 'image' in request.files:
             file = request.files['image']
             if file and allowed_file(file.filename):
-                # ENHANCED: Save with Cloudinary (YOUR account)
-                result = save_product_image(file)
-                if result:
-                    if result['type'] == 'cloudinary':
-                        product.image_url = result['url']
-                        flash('✅ Product image uploaded to Cloudinary! Will persist forever.', 'success')
-                    elif result['type'] == 'local':
-                        product.image_filename = result['filename']
-                        flash('⚠️ Product image saved locally (may disappear on restart)', 'info')
+                filename = secure_filename(file.filename)
+                file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+                product.image_filename = filename
         
         db.session.add(product)
         db.session.commit()
@@ -1092,7 +942,7 @@ def admin_products():
     
     products = Product.query.all()
     categories = Category.query.filter_by(is_active=True).all()
-    return render_template('admin/products.html', products=products, categories=categories, get_image_url=get_image_url)
+    return render_template('admin/products.html', products=products, categories=categories)
 
 # UPDATED: Product deletion now allows deletion even with orders
 @app.route('/admin/delete_product/<int:product_id>', methods=['POST'])
@@ -1213,15 +1063,12 @@ def admin_deliver_order(order_id):
             if file and file.filename != '':
                 # Only allow specific delivery file types
                 if allowed_file(file.filename, delivery=True):
-                    # ENHANCED: Save with Cloudinary (YOUR account)
-                    result = save_delivery_file(file, order_id)
-                    if result:
-                        if result['type'] == 'cloudinary':
-                            order.delivery_file_url = result['url']
-                            flash('✅ Delivery file uploaded to Cloudinary! Will persist forever.', 'success')
-                        elif result['type'] == 'local':
-                            order.delivery_file = result['path']
-                            flash('⚠️ Delivery file saved locally (may disappear on restart)', 'info')
+                    filename = secure_filename(file.filename)
+                    # Save to deliveries folder with order ID
+                    file_path = os.path.join(app.config['PRODUCT_DELIVERY_FOLDER'], f"order_{order_id}_{filename}")
+                    file.save(file_path)
+                    order.delivery_file = file_path
+                    print(f"✅ Saved delivery file: {file_path}")
                 else:
                     flash('Invalid file type for delivery', 'error')
                     return redirect(url_for('admin_deliver_order', order_id=order_id))
@@ -1329,8 +1176,7 @@ def search():
                          products=products, 
                          categories=categories,
                          search_query=query,
-                         selected_category=category_id,
-                         get_image_url=get_image_url)
+                         selected_category=category_id)
 
 @app.route('/setup-database')
 def setup_database():
@@ -1425,12 +1271,9 @@ def create_first_admin():
 with app.app_context():
     print("🔄 INITIALIZING DATABASE...")
     
-    # Safe database check
-    safe_database_check()
-    
-    # Create tables (won't drop existing)
+    # Force drop and recreate all tables to ensure schema is correct
     db.create_all()
-    print("✅ Database tables verified")
+    print("✅ Database tables force-created with current schema")
     
     # Create admin user
     from werkzeug.security import generate_password_hash
@@ -1455,13 +1298,6 @@ with app.app_context():
     # Create folders
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
     os.makedirs(app.config['PRODUCT_DELIVERY_FOLDER'], exist_ok=True)
-    
-    # Initialize Cloudinary
-    if init_cloudinary():
-        print("✅ Cloudinary configured: dbid7awex")
-        print("✅ Images will persist permanently in the cloud!")
-    else:
-        print("⚠️ Install Cloudinary: pip install cloudinary")
 
 if __name__ == '__main__':
     print("")
@@ -1469,7 +1305,6 @@ if __name__ == '__main__':
     print("🔑 ADMIN LOGIN:")
     print("   Username: corner")
     print("   Password: cornerdooradmin4life")
-    print("☁️  CLOUDINARY: Configured with YOUR account")
     print("🌐 ACCESS AT: http://localhost:5000")
     print("")
     
