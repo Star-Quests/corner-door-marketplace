@@ -13,6 +13,27 @@ import base64
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'corner-door-ultimate-fix-2024'
 
+# Add this NEW function after the imports (around line 30):
+def safe_database_check():
+    """Safe check for database without breaking"""
+    with app.app_context():
+        try:
+            from sqlalchemy import inspect, text
+            inspector = inspect(db.engine)
+            
+            # Check for product table columns
+            product_columns = [col['name'] for col in inspector.get_columns('product')]
+            if 'image_url' not in product_columns:
+                print("⚠️ product.image_url column missing - will use local files")
+            
+            # Check for order table columns  
+            order_columns = [col['name'] for col in inspector.get_columns('order')]
+            if 'delivery_file_url' not in order_columns:
+                print("⚠️ order.delivery_file_url column missing - will use local files")
+                
+        except Exception as e:
+            print(f"ℹ️ Database check: {e}")
+
 # PostgreSQL Configuration
 if os.environ.get('DATABASE_URL'):
     # Production - use PostgreSQL
@@ -241,19 +262,33 @@ def upload_to_cloudinary(file, folder="products"):
         return None
 
 def get_image_url(product):
-    """Get image URL - prefers Cloudinary, falls back to local"""
-    if product.image_url:
-        return product.image_url
-    elif product.image_filename:
+    """Get image URL - SAFE version for missing columns"""
+    # First check if image_url exists AND has a value
+    try:
+        if hasattr(product, 'image_url') and product.image_url:
+            return product.image_url
+    except:
+        pass
+    
+    # Fall back to old image_filename
+    if product.image_filename:
         return f"/{app.config['UPLOAD_FOLDER']}/{product.image_filename}"
+    
     return None
 
 def get_delivery_url(order):
-    """Get delivery URL - prefers Cloudinary, falls back to local"""
-    if order.delivery_file_url:
-        return order.delivery_file_url
-    elif order.delivery_file:
+    """Get delivery URL - SAFE version for missing columns"""
+    # First check if delivery_file_url exists AND has a value
+    try:
+        if hasattr(order, 'delivery_file_url') and order.delivery_file_url:
+            return order.delivery_file_url
+    except:
+        pass
+    
+    # Fall back to old delivery_file
+    if order.delivery_file:
         return order.delivery_file
+    
     return None
 
 # ========== ENHANCED FILE HANDLING ==========
@@ -1390,9 +1425,12 @@ def create_first_admin():
 with app.app_context():
     print("🔄 INITIALIZING DATABASE...")
     
-    # Force drop and recreate all tables to ensure schema is correct
+    # Safe database check
+    safe_database_check()
+    
+    # Create tables (won't drop existing)
     db.create_all()
-    print("✅ Database tables force-created with current schema")
+    print("✅ Database tables verified")
     
     # Create admin user
     from werkzeug.security import generate_password_hash
