@@ -275,33 +275,27 @@ def get_image_url(product):
 
 def get_delivery_url(order):
     """Get delivery file URL - FIXED VERSION"""
-    print(f"DEBUG get_delivery_url for order #{order.id}:")
-    print(f"  delivery_file_url: {order.delivery_file_url}")
-    print(f"  delivery_file: {order.delivery_file}")
-    
     # Try Cloudinary URL first
     if order.delivery_file_url:
-        # Make sure URL has https://
         url = str(order.delivery_file_url)
+        
+        # FIX: Change image/upload to raw/upload for PDF files
+        if 'image/upload' in url and ('.pdf' in url.lower() or url.lower().endswith(('.doc', '.docx', '.txt', '.zip', '.rar'))):
+            url = url.replace('image/upload', 'raw/upload')
+            print(f"DEBUG: Fixed URL type: {url}")
+        
+        # Make sure URL has https://
         if url.startswith('http'):
-            print(f"  Returning Cloudinary URL: {url}")
             return url
         elif url.startswith('//'):
-            url = 'https:' + url
-            print(f"  Fixed protocol, returning: {url}")
-            return url
+            return 'https:' + url
         else:
-            print(f"  Returning as-is: {url}")
             return url
     
     # Fall back to local file
     if order.delivery_file:
-        # Make sure it's a proper path
-        file_path = str(order.delivery_file)
-        print(f"  Returning local file: {file_path}")
-        return file_path
+        return str(order.delivery_file)
     
-    print("  No delivery file available")
     return None
 
 def save_product_image(file):
@@ -1054,13 +1048,9 @@ def download_delivery(order_id):
             if '?' in delivery_url:
                 delivery_url = delivery_url.split('?')[0]
     
-            # Add flags parameter for Cloudinary
+            # Add fl_attachment parameter for Cloudinary to force download
             if 'cloudinary.com' in delivery_url:
-                # For Cloudinary, use 'fl_attachment' to force download
-                if '?' in delivery_url:
-                    delivery_url += '&fl_attachment'
-                else:
-                    delivery_url += '?fl_attachment'
+                delivery_url += '?fl_attachment'
     
             print(f"DEBUG: Redirecting to: {delivery_url}")
             return redirect(delivery_url)
