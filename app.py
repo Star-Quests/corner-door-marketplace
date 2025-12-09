@@ -307,45 +307,70 @@ def save_delivery_file(file, order_id):
     return None, None
 
 # ========== DATABASE MIGRATION ==========
+# ========== DATABASE MIGRATION ==========
 def migrate_database_safely():
-    """Add missing columns without breaking existing data"""
+    """Add missing columns without breaking existing data - PostgreSQL compatible"""
     with app.app_context():
         try:
-            from sqlalchemy import text
+            from sqlalchemy import inspect, text
             
-            # Check and add columns if they don't exist
-            conn = db.engine.connect()
+            inspector = inspect(db.engine)
             
-            # Check for image_url column
-            try:
-                conn.execute(text("""
-                    ALTER TABLE product 
-                    ADD COLUMN IF NOT EXISTS image_url VARCHAR(500)
-                """))
-                print("✅ Verified/Created product.image_url column")
-            except:
+            # Check for image_url column in product table
+            product_columns = [col['name'] for col in inspector.get_columns('product')]
+            if 'image_url' not in product_columns:
+                print("🔄 Adding product.image_url column...")
+                conn = db.engine.connect()
+                conn.execute(text("ALTER TABLE product ADD COLUMN image_url VARCHAR(500)"))
+                conn.commit()
+                conn.close()
+                print("✅ Added product.image_url column")
+            else:
                 print("ℹ️ product.image_url column already exists")
             
-            # Check for delivery_file_url column
-            try:
-                conn.execute(text("""
-                    ALTER TABLE "order"
-                    ADD COLUMN IF NOT EXISTS delivery_file_url VARCHAR(500)
-                """))
-                print("✅ Verified/Created order.delivery_file_url column")
-            except:
+            # Check for delivery_file_url column in order table
+            # Note: order is a reserved word in PostgreSQL, need quotes
+            order_columns = [col['name'] for col in inspector.get_columns('order')]
+            if 'delivery_file_url' not in order_columns:
+                print("🔄 Adding order.delivery_file_url column...")
+                conn = db.engine.connect()
+                conn.execute(text("""ALTER TABLE "order" ADD COLUMN delivery_file_url VARCHAR(500)"""))
+                conn.commit()
+                conn.close()
+                print("✅ Added order.delivery_file_url column")
+            else:
                 print("ℹ️ order.delivery_file_url column already exists")
             
-            conn.close()
+            # Also check for the other columns that might be missing
+            user_columns = [col['name'] for col in inspector.get_columns('user')]
+            if 'unread_notifications' not in user_columns:
+                print("🔄 Adding user.unread_notifications column...")
+                conn = db.engine.connect()
+                conn.execute(text("ALTER TABLE \"user\" ADD COLUMN unread_notifications INTEGER DEFAULT 0"))
+                conn.commit()
+                conn.close()
+                print("✅ Added user.unread_notifications column")
+            
+            if 'unread_messages' not in user_columns:
+                print("🔄 Adding user.unread_messages column...")
+                conn = db.engine.connect()
+                conn.execute(text("ALTER TABLE \"user\" ADD COLUMN unread_messages INTEGER DEFAULT 0"))
+                conn.commit()
+                conn.close()
+                print("✅ Added user.unread_messages column")
+                
         except Exception as e:
-            print(f"⚠️ Database migration check: {e}")
+            print(f"⚠️ Database migration error: {e}")
+            print("⚠️ Try manual SQL fix:")
+            print("   psql $DATABASE_URL -c \"ALTER TABLE product ADD COLUMN IF NOT EXISTS image_url VARCHAR(500);\"")
+            print("   psql $DATABASE_URL -c \"ALTER TABLE \\\"order\\\" ADD COLUMN IF NOT EXISTS delivery_file_url VARCHAR(500);\"")
 
 # ========== INITIALIZATION ==========
 with app.app_context():
     # First migrate database
     migrate_database_safely()
     
-    # Then create all tables
+    # Then create all tables (for new tables)
     db.create_all()
     print('✅ Database tables verified')
     
