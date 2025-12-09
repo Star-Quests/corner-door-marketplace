@@ -69,20 +69,37 @@ def init_cloudinary():
 # Initialize Cloudinary
 CLOUDINARY_AVAILABLE = init_cloudinary()
 
-def upload_to_cloudinary(file, folder="products"):
+def upload_to_cloudinary(file, folder="products", delivery=False):
     """Upload file to Cloudinary if available"""
     if not CLOUDINARY_AVAILABLE:
         return None
     
     try:
         import cloudinary.uploader
+        
+        # Determine resource type based on file type
+        filename = file.filename.lower()
+        
+        if delivery:
+            # For delivery files, use 'raw' for PDFs, ZIPs, etc.
+            if filename.endswith(('.pdf', '.doc', '.docx', '.txt', '.zip', '.rar')):
+                resource_type = 'raw'
+            elif filename.endswith(('.mp4', '.avi', '.mov')):
+                resource_type = 'video'
+            else:
+                resource_type = 'auto'
+        else:
+            # For product images, use 'image' or 'auto'
+            resource_type = 'image'
+        
         upload_result = cloudinary.uploader.upload(
             file,
             folder=f"corner_door/{folder}",
-            resource_type="auto"
+            resource_type=resource_type  # ADD THIS
         )
         return upload_result['secure_url']
-    except:
+    except Exception as e:
+        print(f"Cloudinary upload error: {e}")
         return None
 
 # ========== DATABASE MODELS (SAFE VERSION) ==========
@@ -312,16 +329,21 @@ def save_delivery_file(file, order_id):
         return None, None
     
     if allowed_file(file.filename, delivery=True):
-        # Try Cloudinary first
-        cloudinary_url = upload_to_cloudinary(file, folder="deliveries")
+        print(f"DEBUG: Uploading delivery file: {file.filename}")
+        
+        # Try Cloudinary first with delivery=True
+        cloudinary_url = upload_to_cloudinary(file, folder="deliveries", delivery=True)
+        
         if cloudinary_url:
-            return cloudinary_url, None  # Return URL, no path
+            print(f"DEBUG: Cloudinary upload successful: {cloudinary_url}")
+            return cloudinary_url, None
         
         # Fallback to local storage
         filename = secure_filename(file.filename)
         file_path = os.path.join(app.config['PRODUCT_DELIVERY_FOLDER'], f"order_{order_id}_{filename}")
         file.save(file_path)
-        return None, file_path  # Return no URL, but file path
+        print(f"DEBUG: Local save successful: {file_path}")
+        return None, file_path
     
     return None, None
 
@@ -1027,26 +1049,21 @@ def download_delivery(order_id):
         
         # If it's a Cloudinary URL (starts with http), redirect to it
         if delivery_url and delivery_url.startswith('http'):
-            print(f"DEBUG: Redirecting to Cloudinary URL")
-            # Add download parameter to force download
-            if '.pdf' in delivery_url.lower() or '.zip' in delivery_url.lower():
-                return redirect(delivery_url + '?dl=1')
-            else:
-                return redirect(delivery_url)
-        
-        # If it's a local file path
-        if delivery_url and os.path.exists(delivery_url):
-            print(f"DEBUG: Sending local file: {delivery_url}")
-            return send_file(delivery_url, as_attachment=True)
-        elif delivery_url:
-            # Try with static folder path
-            static_path = delivery_url.replace('\\', '/')
-            if os.path.exists(static_path):
-                print(f"DEBUG: Sending static file: {static_path}")
-                return send_file(static_path, as_attachment=True)
-        
-        flash('Delivery file not found. Please contact admin.', 'error')
-        return redirect(url_for('order_details', order_id=order_id))
+            # Force download for Cloudinary files
+            # Remove any existing query parameters
+            if '?' in delivery_url:
+                delivery_url = delivery_url.split('?')[0]
+    
+            # Add flags parameter for Cloudinary
+            if 'cloudinary.com' in delivery_url:
+                # For Cloudinary, use 'fl_attachment' to force download
+                if '?' in delivery_url:
+                    delivery_url += '&fl_attachment'
+                else:
+                    delivery_url += '?fl_attachment'
+    
+            print(f"DEBUG: Redirecting to: {delivery_url}")
+            return redirect(delivery_url)
             
     except Exception as e:
         print(f"DEBUG download error: {str(e)}")
