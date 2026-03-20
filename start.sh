@@ -1,14 +1,10 @@
 #!/bin/bash
-set -e  # Stop on error
-set -x  # Show every command
-
-echo "=== STARTING CORNER DOOR ==="
-pwd
+echo "=== Starting Corner Door ==="
+echo "Current directory: $(pwd)"
+echo "Python version: $(python --version)"
+echo "Files in directory:"
 ls -la
-
-echo "=== INSTALLING DEPENDENCIES ==="
-pip install --upgrade pip
-pip install -r requirements.txt
-
-echo "=== RUNNING APP ==="
-python app.py
+echo "Testing import of app..."
+python -c "import app; print('Import successful')"
+echo "Starting Flask app..."
+exec python app.py
