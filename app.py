@@ -11,6 +11,45 @@ import io
 import base64
 import warnings
 
+# ========== PXXL DEBUG - SHOW ERRORS ==========
+import sys
+import os
+import traceback
+
+print("=" * 60)
+print("🚀 CORNER DOOR STARTING - DEBUG MODE")
+print(f"Python: {sys.version}")
+print(f"Directory: {os.getcwd()}")
+print(f"Files: {os.listdir('.')}")
+print("=" * 60)
+
+# Try to import crypto_prices
+try:
+    from crypto_prices import price_manager
+    print("✅ crypto_prices imported successfully")
+except Exception as e:
+    print(f"❌ crypto_prices import error: {e}")
+    traceback.print_exc()
+    # Create a fallback
+    class MockPriceManager:
+        def get_prices(self):
+            return {'BTC': 50000, 'ETH': 3000, 'SOL': 100}
+    price_manager = MockPriceManager()
+    print("⚠️ Using mock price manager")
+
+# Test database connection
+try:
+    from flask_sqlalchemy import SQLAlchemy
+    print("✅ SQLAlchemy imported")
+except Exception as e:
+    print(f"❌ SQLAlchemy import error: {e}")
+    traceback.print_exc()
+
+print("=" * 60)
+print("Attempting to start Flask app...")
+print("=" * 60)
+# ========== END DEBUG ==========
+
 # Suppress SQLAlchemy warnings about missing columns
 warnings.filterwarnings('ignore', message="Could not reflect")
 
