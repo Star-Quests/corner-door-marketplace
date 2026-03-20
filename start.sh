@@ -1,2 +1,14 @@
 #!/bin/bash
-exec gunicorn --bind 0.0.0.0:5000 app:app
+set -e  # Stop on error
+set -x  # Show every command
+
+echo "=== STARTING CORNER DOOR ==="
+pwd
+ls -la
+
+echo "=== INSTALLING DEPENDENCIES ==="
+pip install --upgrade pip
+pip install -r requirements.txt
+
+echo "=== RUNNING APP ==="
+python app.py
